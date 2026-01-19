@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import List, Optional
-from sqlalchemy import String, Integer, Boolean, ForeignKey, DateTime, Text, Index, Computed, JSON
+from sqlalchemy import String, Integer, Boolean, ForeignKey, DateTime, Text, Index, Computed, JSON, Float
 from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
@@ -91,6 +91,6 @@ class AuditLog(Base):
     entity_id: Mapped[int] = mapped_column(Integer)
     action: Mapped[str] = mapped_column(String) # CREATE, UPDATE, DELETE
     changes: Mapped[dict] = mapped_column(JSON)
-    confidence: Mapped[Optional[float]] = mapped_column(Integer, nullable=True)
+    confidence: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     source: Mapped[str] = mapped_column(String) # USER, AI_GENERATED, AI_SCRAPED
     timestamp: Mapped[datetime] = mapped_column(server_default=func.now())
