@@ -1,0 +1,47 @@
+    # If item is draft and has no name, use OCR text
+             if item.is_draft and not item.name:
+                 changes['name'] = ocr_text[:100]
+                 item.name = changes['name']
+                 item.slug = item.name.lower().replace(" ", "-")
+
+             # Store full OCR in pending_changes
+             pending = dict(item.pending_changes or {})
+             pending['ocr_text'] = ocr_text
+             item.pending_changes = pending
+             changes['ocr_text'] = "pending"
+
+             # Audit
+             audit = AuditLog(
+                entity_type="Item",
+                entity_id=item.id,
+                action="SUGGEST",
+                changes={"ocr": "pending"},
+                source="AI_GENERATED",
+                confidence=int(ocr_confidence * 100)
+             )
+             db.add(audit)
+
+        # Process Resistor
+        if isinstance(resistor_result, dict) and resistor_result.get('is_resistor'):
+            confidence = resistor_result.get('confidence', 0.0)
+            resistance = resistor_result.get('resistance')
+            tolerance = resistor_result.get('tolerance')
+
+            pending = dict(item.pending_changes or {})
+            pending['resistance'] = resistance
+            pending['tolerance'] = tolerance
+            item.pending_changes = pending
+
+            source = "AI_SCRAPED" if confidence >= 0.95 else "AI_GENERATED"
+
+            audit = AuditLog(
+                entity_type="Item",
+                entity_id=item.id,
+                action="SUGGEST",
+                changes={"resistance": resistance, "tolerance": tolerance},
+                source=source,
+                confidence=int(confidence * 100)
+            )
+            db.add(audit)
+
+        db.commit()

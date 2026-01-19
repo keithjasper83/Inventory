@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="bg-white shadow overflow-hidden sm:rounded-lg">
+    <div class="px-4 py-5 sm:px-6 flex justify-between items-center">
+        <div>
+            <h3 class="text-lg leading-6 font-medium text-gray-900">
+                {% if item.is_draft %}
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                  DRAFT
+                </span>
+                {% else %}
+                {{ item.name }}
+                {% endif %}
+            </h3>
+            <p class="mt-1 max-w-2xl text-sm text-gray-500">
+                {% if item.slug %}slug: {{ item.slug }}{% endif %}
+            </p>
+        </div>
+        <div>
+            <!-- Actions like Edit/Delete would go here -->
+        </div>
+    </div>
+    <div class="border-t border-gray-200">
+        {% if item.pending_changes %}
+        <div class="bg-yellow-50 px-4 py-5 border-b border-yellow-200">
+            <div class="flex">
+                <div class="flex-shrink-0">
+                    <!-- Heroicon name: solid/exclamation -->
+                    <svg class="h-5 w-5 text-yellow-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                        <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+                    </svg>
+                </div>
+                <div class="ml-3">
+                    <h3 class="text-sm font-medium text-yellow-800">Pending AI Suggestions</h3>
+                    <div class="mt-2 text-sm text-yellow-700">
+                        <p>The AI has suggested the following updates:</p>
+                        <pre class="mt-2 bg-yellow-100 p-2 rounded text-xs">{{ item.pending_changes }}</pre>
+                    </div>
+                    <div class="mt-4">
+                        <div class="-mx-2 -my-1.5 flex">
+                            <form action="/items/{{ item.id }}/approve" method="POST" class="inline">
+                                <button type="submit" class="bg-yellow-50 px-2 py-1.5 rounded-md text-sm font-medium text-yellow-800 hover:bg-yellow-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-yellow-50 focus:ring-yellow-600">
+                                    Approve
+                                </button>
+                            </form>
+                            <form action="/items/{{ item.id }}/reject" method="POST" class="inline ml-3">
+                                <button type="submit" class="bg-yellow-50 px-2 py-1.5 rounded-md text-sm font-medium text-yellow-800 hover:bg-yellow-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-yellow-50 focus:ring-yellow-600">
+                                    Reject
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+        <dl>
+            <div class="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                <dt class="text-sm font-medium text-gray-500">Category</dt>
+                <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{{ item.category.name if item.category else 'Uncategorized' }}</dd>
+            </div>
+            <div class="bg-white px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                <dt class="text-sm font-medium text-gray-500">Data</dt>
+                <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                    <pre class="text-xs">{{ item.data }}</pre>
+                </dd>
+            </div>
+            <div class="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                <dt class="text-sm font-medium text-gray-500">Photos</dt>
+                <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                    <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+                        {% for media in media_list %}
+                        <div class="relative group">
+                            <div class="aspect-w-1 aspect-h-1 w-full overflow-hidden rounded-lg bg-gray-200 xl:aspect-w-7 xl:aspect-h-8">
+                                {% if media.type == 'image' %}
+                                <img src="{{ media.url }}" alt="{{ media.s3_key }}" class="h-full w-full object-cover object-center group-hover:opacity-75">
+                                {% else %}
+                                <a href="{{ media.url }}" target="_blank" class="flex items-center justify-center h-full w-full">
+                                    <span class="text-xs text-gray-500 break-all">{{ media.s3_key }}</span>
+                                </a>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </dd>
+            </div>
+        </dl>
+    </div>
+</div>
+{% endblock %}
