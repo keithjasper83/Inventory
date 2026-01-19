@@ -95,6 +95,9 @@ class ItemService:
             raise ValueError(f"Item {item_id} not found")
         
         if item.pending_changes:
+            # Save changes before clearing
+            changes_to_log = dict(item.pending_changes)
+            
             data = dict(item.data)
             data.update(item.pending_changes)
             item.data = data
@@ -104,7 +107,7 @@ class ItemService:
                 entity_type="Item",
                 entity_id=item.id,
                 action="APPROVE",
-                changes=item.pending_changes,
+                changes=changes_to_log,
                 source="USER"
             )
             self.audit_repo.create(audit)

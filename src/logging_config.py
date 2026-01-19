@@ -16,7 +16,7 @@ class StructuredFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
         """Format a log record as JSON."""
         log_data = {
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now().astimezone().isoformat(),
             "level": record.levelname,
             "logger": record.name,
             "message": record.getMessage(),
