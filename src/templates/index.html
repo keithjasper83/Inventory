@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+    <div class="bg-white overflow-hidden shadow rounded-lg">
+        <div class="px-4 py-5 sm:p-6">
+            <dt class="text-sm font-medium text-gray-500 truncate">Total Items</dt>
+            <dd class="mt-1 text-3xl font-semibold text-gray-900">--</dd> <!-- TODO: Pass stats -->
+        </div>
+        <div class="bg-gray-50 px-4 py-4 sm:px-6">
+            <div class="text-sm">
+                <a href="/items" class="font-medium text-indigo-600 hover:text-indigo-500">View all items</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="bg-white overflow-hidden shadow rounded-lg">
+        <div class="px-4 py-5 sm:p-6">
+            <dt class="text-sm font-medium text-gray-500 truncate">Quick Actions</dt>
+            <dd class="mt-1 text-3xl font-semibold text-gray-900 flex space-x-2">
+                <a href="/new" class="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none">
+                    Capture New
+                </a>
+            </dd>
+        </div>
+    </div>
+</div>
+{% endblock %}
