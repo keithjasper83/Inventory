@@ -1,0 +1,229 @@
+SYSTEM: Inventory Management Platform
+HOST: inventory.kjdev.uk
+
+PURPOSE
+-------
+A photo-first, AI-assisted workshop inventory system optimised for rapid capture,
+accurate identification, and long-term data quality with full human control.
+
+CORE PRINCIPLES
+---------------
+- Capture must never block on AI
+- AI assists, never decides
+- All AI actions are auditable and reversible
+- Unknown data is acceptable; refine later
+- Data must be interrogable (PostgreSQL FTS required)
+- Local-first and self-hostable
+- v1 must be genuinely useful (no reliance on future rewrites)
+
+ARCHITECTURE
+------------
+Backend:
+- Python 3.12+
+- FastAPI
+- SQLAlchemy 2.x
+- Alembic migrations
+- PostgreSQL (FTS enabled; GIN indexes)
+- Redis + RQ for background jobs
+
+Frontend:
+- Server-rendered HTML
+- TailwindCSS
+- Minimal vanilla JS
+- Mobile-first + PWA-friendly
+- Camera capture supported (photo-first)
+- No React
+- No Next.js
+
+Object Storage (S3-compatible):
+- Use S3-compatible API inside the app from day one.
+- Recommended: MinIO (self-hosted) as the default S3 endpoint.
+- Buckets:
+  - inventory-media (photos + derivatives)
+  - inventory-docs (PDF captures, datasheets, literature)
+- Store: original, medium, thumbnail.
+- Presigned URLs for upload/download.
+
+AI / Models
+-----------
+All models run from Jarvis (desktop GPU over VPN). The web server does NOT run models.
+
+Jarvis responsibilities:
+- PaddleOCR (labels, silkscreen, packaging)
+- OpenCLIP embeddings (image + text)
+- Resistor colour-band reading
+- Duplicate similarity scoring
+- Structured extraction / classification via local LLM
+- URL "intent resolver" (unknown route -> best target)
+- Web scraping + datasheet retrieval + PDF capture (when confidence threshold met)
+
+Web server responsibilities:
+- Queue jobs (Redis + RQ)
+- Store results, suggestions, and audit trails
+- Serve UI/API
+
+AI Routing Rules
+----------------
+- URL intent resolver calls Jarvis synchronously (request/response) to avoid UX lag.
+- All other AI tasks are queued (RQ jobs) and executed asynchronously.
+- If Jarvis is unreachable:
+  - Queue continues accepting jobs
+  - Jobs are marked deferred
+  - UI continues uninterrupted
+  - Admin shows AI availability + backlog
+
+SECURITY
+--------
+- Basic username/password authentication (v1)
+- No SSO integration in v1 (do not add flags/stubs)
+- Never expose Jarvis endpoints publicly; only reachable via internal network/VPN.
+- Enforce allowlist of outbound destinations for scraping (optional hardening).
+
+CONFIG / AI HOSTNAME
+-------------------
+- The AI host (Jarvis base URL) MUST be stored in a local config file created on first install.
+- Commit an example template to Git; the real file is generated and treated as a local secret.
+- Required files:
+  - config/ai_host.env.example  (committed)
+  - config/ai_host.env          (created on first install; gitignored)
+
+DDD / SOC BOUNDED CONTEXTS
+-------------------------
+Inventory Context:
+- Item, Category, Location, Stock
+
+Media Context:
+- Photo, PDF, Datasheet, SourceSnapshot
+
+AI Assistance Context:
+- OCRResult, Embedding, DuplicateSuggestion, AISuggestion, AIAuditEntry
+
+Search Context:
+- PostgreSQL FTS + query parsing
+- URL-based search + AI intent resolver fallback
+
+DOMAIN REQUIREMENTS
+-------------------
+Locations:
+- Seed 9 locations (DESK, WALL, BOX-01..BOX-07)
+- Users can create new locations via UI button
+- Support parent/child locations (future-proofing)
+
+Items:
+- Items can be created as DRAFT with minimal info.
+- Required on create:
+  - at least one photo OR a name
+  - location
+  - quantity (default 1)
+- Item may exist in multiple locations via Stock table.
+
+Categories & Dynamic Fields:
+- Categories define JSON schema for attribute fields.
+- When category is selected/confirmed, UI updates to show only relevant fields.
+- Users can create new categories via UI button.
+
+SEARCH (MVP REQUIREMENT)
+-----------------------
+- PostgreSQL FTS enabled from v1.
+- Search must cover:
+  - item name
+  - category/subcategory
+  - OCR text
+  - key attributes (flattened)
+- Provide URL-based search routes.
+
+HUMAN-READABLE URLS + CATCH-ALL
+-------------------------------
+Canonical routes:
+- /new
+- /i/<slug>
+- /c/<slug>
+- /l/<slug>
+- /p/<id>
+- /s/<query>
+
+Catch-all resolver:
+- Any unknown path attempts:
+  1) deterministic resolution (exact slugs/ids)
+  2) FTS-based best matches
+  3) Jarvis intent resolver (only if still ambiguous)
+- Pages selected by AI MUST show a top banner:
+  "This page was selected by AI" + confidence.
+
+RESISTOR IDENTIFICATION (V1 REQUIRED)
+------------------------------------
+- If photo is clear enough, system suggests band colours and computes:
+  - resistance
+  - tolerance
+  - temperature coefficient (if applicable)
+- Output includes confidence.
+- If confidence >= 95%:
+  - mark extracted fields as AI_SCRAPED
+  - create audit entry
+- If confidence < 95%:
+  - create warning + review suggestion
+
+AI SCRAPING THRESHOLD (V1 REQUIRED)
+----------------------------------
+If confidence >= 95% using barcode, OCR, chip markings, filament label, PCB markings:
+- Find authoritative sources (manufacturer, distributor, reputable vendor)
+- Save source page as PDF ("printed" snapshot)
+- Download datasheets and relevant literature
+- Store all artifacts in S3-compatible storage
+- Link artifacts and citations to the item
+- Mark fields as AI_SCRAPED
+
+AUDITABILITY
+------------
+- All AI-generated and AI-scraped modifications MUST be recorded:
+  - before/after values
+  - source (AI-generated vs AI-scraped)
+  - confidence
+  - timestamp
+  - job id
+- AI cannot override human decisions.
+  - Any "conflict" requires justification and explicit user approval.
+
+BACKGROUND JOBS (REDIS + RQ)
+----------------------------
+- Jobs include:
+  - OCR
+  - embeddings
+  - duplicate scoring
+  - tidy/normalisation suggestions
+  - scraping + PDF/datasheet retrieval
+  - periodic health checks
+- Retries with backoff; DLQ for permanent failure.
+- Admin UI shows job status and allows retry.
+
+LOGGING & DIAGNOSTICS
+---------------------
+- Structured JSON logs with correlation ids.
+- All AI calls logged with:
+  - prompt/inputs metadata (not raw secrets)
+  - model id
+  - latency
+  - result summary
+  - confidence scores
+- Provide a one-click "copy diagnostics" block for external review.
+
+INSTALLATION & OPERATIONS
+-------------------------
+- One-command install:
+  - DB init + migrations
+  - seed locations + base categories
+  - create config/ai_host.env from template
+  - create buckets in MinIO (if used)
+  - start services
+- One-command upgrade:
+  - pull updates
+  - run migrations
+  - restart services
+- Backups:
+  - DB dump
+  - media/doc bucket sync/export
+- Restore:
+  - restore DB
+  - restore buckets
+
+END OF SPECIFICATION
