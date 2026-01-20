@@ -89,6 +89,43 @@ if [ ! -f .env ]; then
     unset ADMIN_PASSWORD
     
     echo ""
+    echo "3. S3/MinIO Storage Credentials (generating secure credentials)"
+    echo ""
+    
+    # Generate MinIO credentials
+    S3_ACCESS_KEY=$(python3 -c "import secrets; print(secrets.token_urlsafe(16))" 2>/dev/null || echo "minio-$(date +%s)")
+    S3_SECRET_KEY=$(python3 -c "import secrets; print(secrets.token_urlsafe(32))" 2>/dev/null || echo "minio-secret-$(date +%s)")
+    
+    if [ -n "$S3_ACCESS_KEY" ] && [ -n "$S3_SECRET_KEY" ]; then
+        if command -v sed &> /dev/null; then
+            sed -i "s|^S3_ACCESS_KEY=.*|S3_ACCESS_KEY=$S3_ACCESS_KEY|" .env
+            sed -i "s|^S3_SECRET_KEY=.*|S3_SECRET_KEY=$S3_SECRET_KEY|" .env
+            echo "✓ S3_ACCESS_KEY has been generated and set"
+            echo "✓ S3_SECRET_KEY has been generated and set"
+        fi
+    fi
+    
+    # Generate and set POSTGRES_PASSWORD
+    echo ""
+    echo "4. PostgreSQL Database Password (generating secure password)"
+    echo ""
+    
+    POSTGRES_PASSWORD=$(python3 -c "import secrets; print(secrets.token_urlsafe(24))" 2>/dev/null || echo "postgres-$(date +%s)")
+    
+    if [ -n "$POSTGRES_PASSWORD" ]; then
+        if command -v sed &> /dev/null; then
+            sed -i "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=$POSTGRES_PASSWORD|" .env
+            # Update DATABASE_URL with the new password
+            sed -i "s|^DATABASE_URL=.*|DATABASE_URL=postgresql+psycopg://postgres:$POSTGRES_PASSWORD@postgres:5432/jules_inventory|" .env
+            echo "✓ POSTGRES_PASSWORD has been generated and set"
+            echo "✓ DATABASE_URL has been updated with the password"
+        fi
+    fi
+    
+    # Clear passwords from memory
+    unset POSTGRES_PASSWORD S3_ACCESS_KEY S3_SECRET_KEY
+    
+    echo ""
     echo "Configuration complete!"
     echo ""
 else
