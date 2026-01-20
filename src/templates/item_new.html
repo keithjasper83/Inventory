@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto bg-white shadow sm:rounded-lg p-6">
+    <h1 class="text-2xl font-bold mb-6">New Item</h1>
+
+    <form action="/items" method="POST" enctype="multipart/form-data" class="space-y-6">
+        <div>
+            <label class="block text-sm font-medium text-gray-700">Photo (Required)</label>
+            <div class="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
+                <div class="space-y-1 text-center">
+                    <svg class="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true">
+                        <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                    </svg>
+                    <div class="flex text-sm text-gray-600 justify-center">
+                        <label for="photo" class="relative cursor-pointer bg-white rounded-md font-medium text-indigo-600 hover:text-indigo-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-indigo-500">
+                            <span>Take a photo</span>
+                            <input id="photo" name="photo" type="file" accept="image/*" capture="environment" required class="sr-only" onchange="previewImage(this)">
+                        </label>
+                    </div>
+                    <p class="text-xs text-gray-500">PNG, JPG, GIF up to 10MB</p>
+                </div>
+            </div>
+            <img id="preview" class="mt-4 hidden max-h-64 mx-auto rounded-lg shadow-lg">
+        </div>
+
+        <div>
+            <label for="name" class="block text-sm font-medium text-gray-700">Name (Optional - Leave blank for Draft)</label>
+            <input type="text" name="name" id="name" class="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md">
+            <p class="mt-2 text-sm text-gray-500">If left blank, item will be saved as DRAFT and AI will attempt to identify it.</p>
+        </div>
+
+        <div class="grid grid-cols-1 gap-y-6 gap-x-4 sm:grid-cols-2">
+            <div>
+                <label for="location_id" class="block text-sm font-medium text-gray-700">Location</label>
+                <select id="location_id" name="location_id" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
+                    {% for loc in locations %}
+                    <option value="{{ loc.id }}">{{ loc.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div>
+                <label for="category_id" class="block text-sm font-medium text-gray-700">Category</label>
+                <select id="category_id" name="category_id" onchange="loadCategorySchema(this.value)" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
+                    <option value="">-- Select Category --</option>
+                    {% for cat in categories %}
+                    <option value="{{ cat.id }}">{{ cat.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <!-- Dynamic Fields Container -->
+        <div id="dynamic-fields" class="space-y-6 border-t border-gray-200 pt-6 hidden">
+            <h3 class="text-lg font-medium leading-6 text-gray-900">Category Attributes</h3>
+            <div id="schema-fields" class="grid grid-cols-1 gap-y-6 gap-x-4 sm:grid-cols-2">
+                <!-- Fields injected here -->
+            </div>
+        </div>
+
+        <div>
+            <label for="quantity" class="block text-sm font-medium text-gray-700">Quantity</label>
+            <input type="number" name="quantity" id="quantity" value="1" min="1" class="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md">
+        </div>
+
+        <div class="pt-5">
+            <div class="flex justify-end">
+                <button type="button" onclick="history.back()" class="bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                    Cancel
+                </button>
+                <button type="submit" class="ml-3 inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                    Save Item
+                </button>
+            </div>
+        </div>
+    </form>
+</div>
+
+<script>
+    function previewImage(input) {
+        if (input.files && input.files[0]) {
+            var reader = new FileReader();
+            reader.onload = function(e) {
+                var preview = document.getElementById('preview');
+                preview.src = e.target.result;
+                preview.classList.remove('hidden');
+            }
+            reader.readAsDataURL(input.files[0]);
+        }
+    }
+
+    async function loadCategorySchema(categoryId) {
+        const container = document.getElementById('dynamic-fields');
+        const fieldsContainer = document.getElementById('schema-fields');
+
+        fieldsContainer.innerHTML = '';
+        container.classList.add('hidden');
+
+        if (!categoryId) return;
+
+        try {
+            const response = await fetch(`/categories/${categoryId}/schema`);
+            if (!response.ok) return;
+
+            const schema = await response.json();
+
+            // Simple JSON Schema support (properties)
+            if (schema && schema.properties) {
+                container.classList.remove('hidden');
+
+                Object.keys(schema.properties).forEach(key => {
+                    const prop = schema.properties[key];
+                    const wrapper = document.createElement('div');
+
+                    const label = document.createElement('label');
+                    label.innerText = prop.title || key;
+                    label.classList.add('block', 'text-sm', 'font-medium', 'text-gray-700', 'capitalize');
+                    label.htmlFor = `data_${key}`;
+
+                    let input;
+                    if (prop.type === 'boolean') {
+                        input = document.createElement('input');
+                        input.type = 'checkbox';
+                        input.classList.add('mt-1', 'h-4', 'w-4', 'text-indigo-600', 'focus:ring-indigo-500', 'border-gray-300', 'rounded');
+                    } else if (prop.enum) {
+                         input = document.createElement('select');
+                         input.classList.add('mt-1', 'block', 'w-full', 'pl-3', 'pr-10', 'py-2', 'text-base', 'border-gray-300', 'focus:outline-none', 'focus:ring-indigo-500', 'focus:border-indigo-500', 'sm:text-sm', 'rounded-md');
+                         prop.enum.forEach(opt => {
+                             const option = document.createElement('option');
+                             option.value = opt;
+                             option.innerText = opt;
+                             input.appendChild(option);
+                         });
+                    } else {
+                        input = document.createElement('input');
+                        input.type = prop.type === 'integer' || prop.type === 'number' ? 'number' : 'text';
+                        input.classList.add('mt-1', 'focus:ring-indigo-500', 'focus:border-indigo-500', 'block', 'w-full', 'shadow-sm', 'sm:text-sm', 'border-gray-300', 'rounded-md');
+                    }
+
+                    input.name = `data_${key}`; // Prefix to handle in backend if needed, or just dump form data
+                    input.id = `data_${key}`;
+
+                    wrapper.appendChild(label);
+                    wrapper.appendChild(input);
+                    fieldsContainer.appendChild(wrapper);
+                });
+            }
+        } catch (e) {
+            console.error(e);
+        }
+    }
+</script>
+{% endblock %}

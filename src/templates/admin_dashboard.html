@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <h1 class="text-3xl font-bold leading-tight text-gray-900 mb-8">Admin Dashboard</h1>
+
+    <div class="grid grid-cols-1 gap-8 md:grid-cols-2">
+        <!-- System Health -->
+        <div class="bg-white overflow-hidden shadow rounded-lg">
+            <div class="px-4 py-5 sm:p-6">
+                <h3 class="text-lg leading-6 font-medium text-gray-900">System Health (Redis/RQ)</h3>
+                <dl class="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-2">
+                    <div class="px-4 py-5 bg-gray-50 shadow rounded-lg overflow-hidden sm:p-6">
+                        <dt class="text-sm font-medium text-gray-500 truncate">Queue Length</dt>
+                        <dd class="mt-1 text-3xl font-semibold text-gray-900">{{ stats.queue_length }}</dd>
+                    </div>
+                    <div class="px-4 py-5 bg-gray-50 shadow rounded-lg overflow-hidden sm:p-6">
+                        <dt class="text-sm font-medium text-gray-500 truncate">Failed Jobs</dt>
+                        <dd class="mt-1 text-3xl font-semibold text-red-600">{{ stats.failed_jobs }}</dd>
+                    </div>
+                    <div class="px-4 py-5 bg-gray-50 shadow rounded-lg overflow-hidden sm:p-6">
+                        <dt class="text-sm font-medium text-gray-500 truncate">Active Workers</dt>
+                        <dd class="mt-1 text-3xl font-semibold text-green-600">{{ stats.workers_count }}</dd>
+                    </div>
+                </dl>
+                {% if stats.error %}
+                <p class="mt-4 text-sm text-red-500">Error fetching stats: {{ stats.error }}</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Configuration -->
+        <div class="bg-white overflow-hidden shadow rounded-lg">
+            <div class="px-4 py-5 sm:p-6">
+                <h3 class="text-lg leading-6 font-medium text-gray-900 mb-4">Configuration</h3>
+                <form action="/admin/settings" method="POST" class="space-y-4">
+                    <div>
+                        <label for="ai_confidence_threshold" class="block text-sm font-medium text-gray-700">AI Confidence Threshold (0.0 - 1.0)</label>
+                        <input type="number" step="0.01" name="ai_confidence_threshold" id="ai_confidence_threshold" value="{{ settings.ai_confidence_threshold }}" class="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md">
+                    </div>
+
+                    <div>
+                        <label for="scrape_timeout" class="block text-sm font-medium text-gray-700">Scrape Timeout (seconds)</label>
+                        <input type="number" name="scrape_timeout" id="scrape_timeout" value="{{ settings.scrape_timeout }}" class="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md">
+                    </div>
+
+                    <div>
+                        <label for="presigned_url_expiry" class="block text-sm font-medium text-gray-700">Presigned URL Expiry (seconds)</label>
+                        <input type="number" name="presigned_url_expiry" id="presigned_url_expiry" value="{{ settings.presigned_url_expiry }}" class="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md">
+                    </div>
+
+                    <div>
+                        <label for="rq_retry_max" class="block text-sm font-medium text-gray-700">Max Job Retries</label>
+                        <input type="number" name="rq_retry_max" id="rq_retry_max" value="{{ settings.rq_retry_max }}" class="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md">
+                    </div>
+
+                    <div class="pt-2">
+                        <button type="submit" class="w-full inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                            Update Settings
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
