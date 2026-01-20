@@ -9,6 +9,40 @@ import asyncio
 import io
 from PIL import Image
 from rq import get_current_job
+from functools import wraps
+
+def retry_with_backoff(max_retries=3, initial_backoff=1.0, backoff_multiplier=2.0):
+    """
+    Decorator for retrying functions with exponential backoff.
+    
+    Args:
+        max_retries: Maximum number of retry attempts
+        initial_backoff: Initial backoff time in seconds
+        backoff_multiplier: Multiplier for backoff time after each retry
+    """
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            backoff = initial_backoff
+            last_exception = None
+            
+            for attempt in range(max_retries + 1):
+                try:
+                    return func(*args, **kwargs)
+                except Exception as e:
+                    last_exception = e
+                    if attempt < max_retries:
+                        time.sleep(backoff)
+                        backoff *= backoff_multiplier
+                    else:
+                        # Final attempt failed, raise the exception
+                        raise
+            
+            # Should never reach here, but just in case
+            raise last_exception
+        
+        return wrapper
+    return decorator
 
 def get_db():
     db = SessionLocal()
