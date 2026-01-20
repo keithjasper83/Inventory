@@ -111,7 +111,8 @@
     
     <script>
         // Load audit logs via AJAX
-        fetch('/items/{{ item.id }}/audit')
+        const itemId = {{ item.id }};
+        fetch('/items/' + itemId + '/audit')
             .then(response => response.json())
             .then(data => {
                 const container = document.getElementById('audit-log-container');

@@ -268,11 +268,18 @@ async def undo_change(id: int, log_id: int, request: Request, db: Session = Depe
     
     # Revert the changes if previous_values exist
     if audit_log.previous_values:
+        # Define allowed attributes that can be undone
+        allowed_item_attrs = {'name', 'slug', 'category_id', 'is_draft'}
+        
         for key, value in audit_log.previous_values.items():
-            if hasattr(item, key):
+            # Only allow undoing specific item attributes
+            if key in allowed_item_attrs and hasattr(item, key):
                 setattr(item, key, value)
-            elif key in item.data:
-                item.data[key] = value
+            # For data field changes, update within the JSON field
+            elif 'data.' in key:
+                field_name = key.replace('data.', '')
+                if isinstance(item.data, dict):
+                    item.data[field_name] = value
         
         # Mark as undone
         audit_log.is_undone = True

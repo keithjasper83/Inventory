@@ -27,7 +27,7 @@ async def admin_dashboard(request: Request, db: Session = Depends(get_db)):
     }
     
     try:
-        from redis import Redis
+        from redis import Redis, ConnectionError as RedisConnectionError
         from rq import Queue
         from src.config import settings as config_settings
         
@@ -41,7 +41,7 @@ async def admin_dashboard(request: Request, db: Session = Depends(get_db)):
         rq_stats["jobs_failed"] = queue.failed_job_registry.count
         rq_stats["workers"] = len(queue.workers)
         rq_stats["queues"] = [{"name": "default", "length": len(queue)}]
-    except Exception as e:
+    except (ImportError, RedisConnectionError, ConnectionRefusedError) as e:
         # Redis not available or RQ not configured
         pass
     
