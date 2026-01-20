@@ -14,7 +14,7 @@ from src.models import Item, Media, Category, Location, Stock, AuditLog
 from src.dependencies import templates, require_user, get_current_user
 from src.storage import storage
 from src.ai import ai_client
-from src.tasks import process_item_image
+from src.tasks import process_item_image, scrape_item_task
 from src.config import settings
 
 router = APIRouter()
@@ -192,6 +192,17 @@ async def approve_changes(id: int, request: Request, db: Session = Depends(get_d
         db.add(audit)
         db.commit()
 
+    return RedirectResponse(url=f"/p/{id}", status_code=status.HTTP_303_SEE_OTHER)
+
+@router.post("/items/{id}/scrape")
+async def trigger_scrape(id: int, request: Request, db: Session = Depends(get_db), user=Depends(require_user)):
+    item = db.query(Item).filter(Item.id == id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+
+    q.enqueue(scrape_item_task, item.id)
+
+    # We can add a flash message mechanism later, for now just redirect
     return RedirectResponse(url=f"/p/{id}", status_code=status.HTTP_303_SEE_OTHER)
 
 @router.post("/items/{id}/reject")
