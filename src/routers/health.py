@@ -4,9 +4,11 @@ Used for load balancer health checks and monitoring.
 """
 from fastapi import APIRouter, status
 from fastapi.responses import JSONResponse
+from sqlalchemy import text
 from src.database import SessionLocal
 from src.config import settings
 import redis
+import os
 
 router = APIRouter()
 
@@ -33,7 +35,6 @@ async def readiness_check():
     Returns 200 OK only if all critical dependencies are available.
     Checks: Database, Redis
     """
-    import os
     checks = {
         "database": False,
         "redis": False
@@ -41,7 +42,6 @@ async def readiness_check():
     
     # Check database
     try:
-        from sqlalchemy import text
         db = SessionLocal()
         try:
             db.execute(text("SELECT 1"))
