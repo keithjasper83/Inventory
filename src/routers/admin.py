@@ -1,73 +1,72 @@
-"""
-Admin Dashboard Router
-Provides system settings management and RQ job statistics
-"""
-from fastapi import APIRouter, Depends, Request
+import os
+from fastapi import APIRouter, Depends, Request, Form, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
-from src.dependencies import get_db, templates
-from src.settings_manager import SettingsManager
+from src.database import get_db
 from src.models import SystemSetting
+from src.dependencies import templates, require_user
+from src.settings_manager import settings_manager
+from src.config import settings as app_settings
+import redis
+from rq import Queue
 
-router = APIRouter(prefix="/admin", tags=["admin"])
+router = APIRouter()
 
+@router.get("/admin", response_class=HTMLResponse)
+async def admin_dashboard(request: Request, db: Session = Depends(get_db), user=Depends(require_user)):
+    # 1. Fetch Settings
+    # We want to show all defaults + overrides
+    current_settings = {}
+    for key, default_val in settings_manager._defaults.items():
+        current_settings[key] = settings_manager.get(key)
 
-@router.get("/", response_class=HTMLResponse)
-async def admin_dashboard(request: Request, db: Session = Depends(get_db)):
-    """Admin dashboard showing system settings and RQ stats"""
-    settings = SettingsManager.get_all(db)
-    
-    # Try to get RQ stats (may not be available if Redis isn't running)
-    rq_stats = {
-        "available": False,
-        "queues": [],
-        "workers": 0,
-        "jobs_pending": 0,
-        "jobs_failed": 0
-    }
-    
+    # 2. Fetch Stats
+    stats = {}
     try:
-        from redis import Redis, ConnectionError as RedisConnectionError
-        from rq import Queue
-        from src.config import settings as config_settings
-        
-        redis_conn = Redis.from_url(config_settings.REDIS_URL)
-        redis_conn.ping()  # Test connection
-        
-        # Get queue stats
-        queue = Queue(connection=redis_conn)
-        rq_stats["available"] = True
-        rq_stats["jobs_pending"] = len(queue)
-        rq_stats["jobs_failed"] = queue.failed_job_registry.count
-        rq_stats["workers"] = len(queue.workers)
-        rq_stats["queues"] = [{"name": "default", "length": len(queue)}]
-    except (ImportError, RedisConnectionError, ConnectionRefusedError) as e:
-        # Redis not available or RQ not configured
-        pass
-    
+        # Mock redis if needed
+        if os.environ.get("TEST_MODE"):
+            import fakeredis
+            r = fakeredis.FakeRedis()
+        else:
+            r = redis.from_url(app_settings.REDIS_URL)
+
+        q = Queue(connection=r)
+        stats['queue_length'] = len(q)
+        stats['failed_jobs'] = len(Queue('failed', connection=r))
+
+        # Worker stats could be fetched via Worker.all(connection=r)
+        from rq import Worker
+        workers = Worker.all(connection=r)
+        stats['workers_count'] = len(workers)
+        stats['workers_names'] = [w.name for w in workers]
+
+    except Exception as e:
+        stats['error'] = str(e)
+
     return templates.TemplateResponse(
-        "admin_dashboard.html",
-        {
+        request=request,
+        name="admin_dashboard.html",
+        context={
             "request": request,
-            "settings": settings,
-            "rq_stats": rq_stats
+            "settings": current_settings,
+            "stats": stats,
+            "user": user
         }
     )
 
-
-@router.post("/settings/{setting_id}")
-async def update_setting(
-    setting_id: int,
+@router.post("/admin/settings")
+async def update_settings(
     request: Request,
-    db: Session = Depends(get_db)
+    ai_confidence_threshold: float = Form(...),
+    scrape_timeout: int = Form(...),
+    presigned_url_expiry: int = Form(...),
+    rq_retry_max: int = Form(...),
+    db: Session = Depends(get_db),
+    user=Depends(require_user)
 ):
-    """Update a system setting"""
-    form_data = await request.form()
-    value = form_data.get("value", "")
-    
-    setting = db.query(SystemSetting).filter(SystemSetting.id == setting_id).first()
-    if setting:
-        setting.value = value
-        db.commit()
-    
-    return RedirectResponse(url="/admin", status_code=303)
+    settings_manager.set("ai_confidence_threshold", ai_confidence_threshold)
+    settings_manager.set("scrape_timeout", scrape_timeout)
+    settings_manager.set("presigned_url_expiry", presigned_url_expiry)
+    settings_manager.set("rq_retry_max", rq_retry_max)
+
+    return RedirectResponse(url="/admin", status_code=status.HTTP_303_SEE_OTHER)
