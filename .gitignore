@@ -16,36 +16,36 @@ parts/
 sdist/
 var/
 wheels/
-pip-wheel-metadata/
-share/python-wheels/
 *.egg-info/
 .installed.cfg
 *.egg
-MANIFEST
 
 # Virtual Environment
 venv/
 ENV/
 env/
 
-# IDEs
+# IDE
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
 
-# Database
-*.db
-*.sqlite
-*.sqlite3
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+test.db
 
-# Environment Variables
+# Environment
 .env
 config/ai_host.env
 
-# Logs
-*.log
+# Database
+*.db
+*.db-journal
 
 # OS
 .DS_Store

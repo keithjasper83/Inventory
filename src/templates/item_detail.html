@@ -95,5 +95,60 @@
             </div>
         </dl>
     </div>
+    
+    <!-- Audit Log Section -->
+    <div class="bg-white shadow overflow-hidden sm:rounded-lg mt-6">
+        <div class="px-4 py-5 sm:px-6">
+            <h3 class="text-lg leading-6 font-medium text-gray-900">Change History</h3>
+            <p class="mt-1 text-sm text-gray-500">Audit log of all changes made to this item</p>
+        </div>
+        <div class="border-t border-gray-200">
+            <div id="audit-log-container" class="divide-y divide-gray-200">
+                <p class="px-4 py-5 text-sm text-gray-500">Loading audit logs...</p>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Load audit logs via AJAX
+        const itemId = {{ item.id }};
+        fetch('/items/' + itemId + '/audit')
+            .then(response => response.json())
+            .then(data => {
+                const container = document.getElementById('audit-log-container');
+                if (data.audit_logs && data.audit_logs.length > 0) {
+                    container.innerHTML = data.audit_logs.map(log => `
+                        <div class="px-4 py-4 sm:px-6 ${log.is_undone ? 'bg-gray-50' : ''}">
+                            <div class="flex items-center justify-between">
+                                <div class="flex-1">
+                                    <p class="text-sm font-medium text-gray-900">
+                                        ${log.action}
+                                        ${log.is_undone ? '<span class="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-200 text-gray-800">UNDONE</span>' : ''}
+                                    </p>
+                                    <p class="text-xs text-gray-500 mt-1">
+                                        ${new Date(log.timestamp).toLocaleString()} • Source: ${log.source}
+                                    </p>
+                                    ${log.changes && Object.keys(log.changes).length > 0 ? `
+                                        <pre class="mt-2 text-xs text-gray-600 bg-gray-50 p-2 rounded">${JSON.stringify(log.changes, null, 2)}</pre>
+                                    ` : ''}
+                                </div>
+                                ${!log.is_undone && log.previous_values ? `
+                                    <form method="POST" action="/items/{{ item.id }}/audit/${log.id}/undo" class="ml-4">
+                                        <button type="submit" class="text-sm text-red-600 hover:text-red-800">Undo</button>
+                                    </form>
+                                ` : ''}
+                            </div>
+                        </div>
+                    `).join('');
+                } else {
+                    container.innerHTML = '<p class="px-4 py-5 text-sm text-gray-500">No changes recorded yet</p>';
+                }
+            })
+            .catch(error => {
+                console.error('Error loading audit logs:', error);
+                document.getElementById('audit-log-container').innerHTML = 
+                    '<p class="px-4 py-5 text-sm text-red-500">Error loading audit logs</p>';
+            });
+    </script>
 </div>
 {% endblock %}
