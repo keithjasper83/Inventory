@@ -1,0 +1,61 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+*.egg-info/
+dist/
+build/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+*.cover
+
+# Git
+.git/
+.gitignore
+
+# Documentation
+*.md
+!README.md
+SPECIFICATION.txt
+VALIDATION_*.md
+MERGE_NOTES.md
+SUMMARY.md
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Config (will be mounted as volume)
+config/ai_host.env
+
+# Database
+*.db
+*.sqlite
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Development
+tmp/
+temp/
+scripts/test_*

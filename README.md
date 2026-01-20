@@ -29,6 +29,39 @@ A local-first, AI-assisted workshop inventory system designed for fast photo cap
 
 ## Setup
 
+### Quick Start with Docker (Recommended) ⚡
+
+The fastest way to get started with zero configuration:
+
+```bash
+# Clone and enter directory
+git clone https://github.com/keithjasper83/Inventory.git
+cd Inventory
+
+# Run the quick-start script
+./quick-start.sh
+
+# Access at http://localhost:8000
+```
+
+The quick-start script will:
+- ✅ Check Docker installation
+- ✅ Generate secure SECRET_KEY
+- ✅ Prompt for admin password
+- ✅ Start all services (PostgreSQL, Redis, MinIO, App)
+- ✅ Wait for services to be ready
+
+See [DEPLOYMENT.md](DEPLOYMENT.md) for:
+- Production deployment
+- External database/Redis/S3 configuration
+- Manual installation
+- Backup and restore
+- Troubleshooting
+
+### Manual Installation
+
+For development or when Docker is not available:
+
 ### Prerequisites
 - Python 3.12+
 - PostgreSQL
