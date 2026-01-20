@@ -56,11 +56,27 @@ def validate_production_config():
     if settings.SECRET_KEY == "supersecretkey-CHANGE-IN-PRODUCTION":
         errors.append("SECRET_KEY is using default value. Set a secure SECRET_KEY environment variable.")
     
-    if "postgres:postgres@localhost" in settings.DATABASE_URL and os.environ.get("ENVIRONMENT") == "production":
-        errors.append("DATABASE_URL appears to use default credentials in production.")
+    # Check for common weak database credentials
+    weak_db_patterns = [
+        "postgres:postgres@",
+        "postgres:password@",
+        "root:root@",
+        "admin:admin@",
+        "@localhost:5432",
+        "@127.0.0.1:5432"
+    ]
     
-    if settings.S3_ACCESS_KEY == "minioadmin" and os.environ.get("ENVIRONMENT") == "production":
-        errors.append("S3_ACCESS_KEY is using default value in production.")
+    if os.environ.get("ENVIRONMENT") == "production":
+        for pattern in weak_db_patterns:
+            if pattern in settings.DATABASE_URL:
+                errors.append(f"DATABASE_URL appears to use weak or default credentials in production (pattern: {pattern}).")
+                break
+    
+    # Check for weak S3 credentials
+    weak_s3_keys = ["minioadmin", "admin", "minio", "test"]
+    if os.environ.get("ENVIRONMENT") == "production":
+        if settings.S3_ACCESS_KEY in weak_s3_keys or settings.S3_SECRET_KEY in weak_s3_keys:
+            errors.append("S3 credentials appear to use default or weak values in production.")
     
     if errors:
         error_msg = "\n".join(f"  - {error}" for error in errors)

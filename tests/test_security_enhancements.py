@@ -9,7 +9,8 @@ from src.tasks import (
     create_audit_log,
     validate_ai_output,
     process_item_image,
-    scrape_item_task
+    scrape_item_task,
+    MAX_RETRIES
 )
 from src.models import Item, Media, User, AuditLog
 from src.dependencies import require_role
@@ -260,12 +261,12 @@ class TestDatabaseRollback:
         item = Item(id=1, name=None, is_draft=True, data={}, pending_changes={})
         media = Media(id=1, s3_key="test/key", type="image")
         
-        # Return item and media for each retry attempt (3 retries = 6 calls)
+        # Return item and media for each retry attempt (MAX_RETRIES * 2 calls)
         mock_db.query.return_value.filter.return_value.first.side_effect = [
             item, media,  # First attempt
             item, media,  # Second attempt  
             item, media   # Third attempt
-        ]
+        ][:MAX_RETRIES * 2]
         
         # Simulate storage error
         mock_storage.s3_client.download_fileobj.side_effect = Exception("S3 error")

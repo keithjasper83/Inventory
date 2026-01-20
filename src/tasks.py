@@ -92,15 +92,20 @@ def create_audit_log(
         "after": after_state
     }
     
-    # Determine approval status based on confidence
+    # Determine approval status based on confidence (confidence is 0-100 scale)
     approval_status = None
     if source in ["AI_GENERATED", "AI_SCRAPED"]:
-        if confidence and confidence >= settings.AI_AUTO_APPLY_CONFIDENCE * 100:
-            approval_status = "auto_approved"
-        elif confidence and confidence >= settings.AI_MANUAL_REVIEW_THRESHOLD * 100:
-            approval_status = "pending"
-        else:
-            approval_status = "needs_review"
+        if confidence is not None:
+            # Convert threshold from 0.0-1.0 to 0-100 scale for comparison
+            auto_approve_threshold = settings.AI_AUTO_APPLY_CONFIDENCE * 100
+            review_threshold = settings.AI_MANUAL_REVIEW_THRESHOLD * 100
+            
+            if confidence >= auto_approve_threshold:
+                approval_status = "auto_approved"
+            elif confidence >= review_threshold:
+                approval_status = "pending"
+            else:
+                approval_status = "needs_review"
     
     audit = AuditLog(
         entity_type=entity_type,
@@ -404,7 +409,7 @@ def process_item_image(item_id: int, media_id: int):
         # Process OCR with validation
         if isinstance(ocr_result, dict) and ocr_result.get('text'):
              ocr_text = ocr_result['text']
-             ocr_confidence = ocr_result.get('confidence', 0.0)
+             ocr_confidence = ocr_result.get('confidence', 0.0)  # 0.0-1.0 scale
              
              # Validate OCR output
              if not validate_ai_output(ocr_text, "ocr_text", str):
@@ -433,14 +438,14 @@ def process_item_image(item_id: int, media_id: int):
                     action="SUGGEST",
                     changes={"ocr": "pending"},
                     source="AI_GENERATED",
-                    confidence=int(ocr_confidence * 100),
+                    confidence=int(ocr_confidence * 100),  # Convert to 0-100 scale
                     before_state=before_state,
                     after_state={"ocr_text": ocr_text[:100]}
                  )
 
         # Process Resistor with validation
         if isinstance(resistor_result, dict) and resistor_result.get('is_resistor'):
-            confidence = resistor_result.get('confidence', 0.0)
+            confidence = resistor_result.get('confidence', 0.0)  # 0.0-1.0 scale
             resistance = resistor_result.get('resistance')
             tolerance = resistor_result.get('tolerance')
             
@@ -451,6 +456,7 @@ def process_item_image(item_id: int, media_id: int):
                 pending['tolerance'] = tolerance
                 item.pending_changes = pending
 
+                # Determine source based on confidence (comparing 0.0-1.0 scale values)
                 source = "AI_SCRAPED" if confidence >= settings.AI_AUTO_APPLY_CONFIDENCE else "AI_GENERATED"
 
                 create_audit_log(
@@ -460,7 +466,7 @@ def process_item_image(item_id: int, media_id: int):
                     action="SUGGEST",
                     changes={"resistance": resistance, "tolerance": tolerance},
                     source=source,
-                    confidence=int(confidence * 100),
+                    confidence=int(confidence * 100),  # Convert to 0-100 scale for storage
                     before_state=before_state,
                     after_state={"resistance": resistance, "tolerance": tolerance}
                 )
@@ -477,7 +483,7 @@ def process_item_image(item_id: int, media_id: int):
         }
         logger.info(f"Successfully processed item {item.id}, OCR confidence: {ocr_confidence}")
 
-        # 4. Scrape if high confidence (>= threshold from config)
+        # 4. Scrape if high confidence (compare 0.0-1.0 scale values)
         if ocr_text and ocr_confidence >= settings.AI_AUTO_APPLY_CONFIDENCE:
             logger.info(f"High confidence OCR ({ocr_confidence}), triggering scraping for item {item.id}")
             perform_scraping(item, ocr_text, db)

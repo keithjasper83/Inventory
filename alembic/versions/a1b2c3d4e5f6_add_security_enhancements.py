@@ -21,7 +21,7 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     """
     Add security and audit enhancements:
-    - Add role field to users table
+    - Add role field to users table with CHECK constraint
     - Add enhanced audit fields to audit_log table
     - Add performance indices for audit queries
     
@@ -41,8 +41,13 @@ def upgrade() -> None:
     These indices support the enhanced audit system without significant write overhead.
     Monitor query performance and adjust if needed based on actual usage patterns.
     """
-    # Add role to users table
+    # Add role to users table with CHECK constraint for valid values
     op.add_column('users', sa.Column('role', sa.String(), nullable=False, server_default='user'))
+    op.create_check_constraint(
+        'ck_users_role',
+        'users',
+        "role IN ('user', 'reviewer', 'admin')"
+    )
     
     # Add enhanced audit fields to audit_log table
     op.add_column('audit_log', sa.Column('user_id', sa.Integer(), nullable=True))
@@ -75,5 +80,6 @@ def downgrade() -> None:
     op.drop_column('audit_log', 'approval_status')
     op.drop_column('audit_log', 'user_id')
     
-    # Remove role from users
+    # Remove CHECK constraint and role from users
+    op.drop_constraint('ck_users_role', 'users', type_='check')
     op.drop_column('users', 'role')
