@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload Photo - Companion</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-900 h-screen flex flex-col items-center justify-center p-4">
+
+    <div id="upload-container" class="w-full max-w-md bg-gray-800 rounded-xl shadow-2xl p-8 text-center space-y-8">
+        <h1 class="text-2xl font-bold text-white">Add Item Photo</h1>
+        <p class="text-gray-400">Take a photo of the item to instantly add it to your desktop session.</p>
+
+        <label for="camera-input" class="group block w-full aspect-square bg-gray-700 border-2 border-dashed border-gray-600 rounded-2xl flex flex-col items-center justify-center cursor-pointer hover:border-indigo-500 hover:bg-gray-750 transition-all relative overflow-hidden">
+            <div class="space-y-2" id="placeholder">
+                <svg class="mx-auto h-16 w-16 text-gray-500 group-hover:text-indigo-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                <span class="block text-gray-400 font-medium">Tap to Take Photo</span>
+            </div>
+            <!-- Image Preview -->
+            <img id="preview" class="absolute inset-0 w-full h-full object-cover hidden" />
+            <input type="file" id="camera-input" accept="image/*" capture="environment" class="hidden">
+        </label>
+
+        <div id="progress-area" class="hidden space-y-2">
+            <div class="w-full bg-gray-700 rounded-full h-2.5">
+                <div id="progress-bar" class="bg-indigo-600 h-2.5 rounded-full" style="width: 0%"></div>
+            </div>
+            <p class="text-sm text-gray-400">Uploading...</p>
+        </div>
+
+        <button id="upload-btn" class="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold text-lg shadow-lg transform transition active:scale-95 hidden">
+            Send to Desktop
+        </button>
+    </div>
+
+    <div id="success-container" class="hidden w-full max-w-md bg-green-900 rounded-xl shadow-2xl p-8 text-center space-y-6">
+        <div class="mx-auto flex items-center justify-center h-20 w-20 rounded-full bg-green-100">
+            <svg class="h-10 w-10 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+            </svg>
+        </div>
+        <h2 class="text-2xl font-bold text-white">Success!</h2>
+        <p class="text-green-100">Photo received on desktop.</p>
+        <button onclick="location.reload()" class="mt-4 px-6 py-2 border border-green-300 rounded-md text-green-100 hover:bg-green-800">Add Another</button>
+    </div>
+
+    <script>
+        const input = document.getElementById('camera-input');
+        const preview = document.getElementById('preview');
+        const placeholder = document.getElementById('placeholder');
+        const uploadBtn = document.getElementById('upload-btn');
+        const progressArea = document.getElementById('progress-area');
+        const progressBar = document.getElementById('progress-bar');
+        const uploadContainer = document.getElementById('upload-container');
+        const successContainer = document.getElementById('success-container');
+        const sessionId = "{{ session_id }}";
+
+        input.addEventListener('change', function(e) {
+            if (e.target.files && e.target.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    preview.src = e.target.result;
+                    preview.classList.remove('hidden');
+                    placeholder.classList.add('hidden');
+                    uploadBtn.classList.remove('hidden');
+                }
+                reader.readAsDataURL(e.target.files[0]);
+            }
+        });
+
+        uploadBtn.addEventListener('click', async function() {
+            if (!input.files[0]) return;
+
+            const formData = new FormData();
+            formData.append('photo', input.files[0]);
+
+            uploadBtn.classList.add('hidden');
+            progressArea.classList.remove('hidden');
+
+            try {
+                const xhr = new XMLHttpRequest();
+                xhr.open('POST', `/companion/${sessionId}/upload`, true);
+
+                xhr.upload.onprogress = function(e) {
+                    if (e.lengthComputable) {
+                        const percentComplete = (e.loaded / e.total) * 100;
+                        progressBar.style.width = percentComplete + '%';
+                    }
+                };
+
+                xhr.onload = function() {
+                    if (xhr.status === 200) {
+                        uploadContainer.classList.add('hidden');
+                        successContainer.classList.remove('hidden');
+                    } else {
+                        alert('Upload failed. Please try again.');
+                        progressArea.classList.add('hidden');
+                        uploadBtn.classList.remove('hidden');
+                    }
+                };
+
+                xhr.onerror = function() {
+                    alert('Network error.');
+                    progressArea.classList.add('hidden');
+                    uploadBtn.classList.remove('hidden');
+                };
+
+                xhr.send(formData);
+            } catch (e) {
+                console.error(e);
+                alert('Error uploading file.');
+            }
+        });
+    </script>
+</body>
+</html>
