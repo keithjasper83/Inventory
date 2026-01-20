@@ -12,7 +12,15 @@ class User(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     username: Mapped[str] = mapped_column(String, unique=True, index=True)
     password_hash: Mapped[str] = mapped_column(String)
+    role: Mapped[str] = mapped_column(String, default="user")  # user, admin, reviewer
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    
+    def has_role(self, role: str) -> bool:
+        """Check if user has a specific role or higher privileges."""
+        role_hierarchy = {"admin": 3, "reviewer": 2, "user": 1}
+        user_level = role_hierarchy.get(self.role, 0)
+        required_level = role_hierarchy.get(role, 0)
+        return user_level >= required_level
 
 class Location(Base):
     __tablename__ = "locations"
@@ -89,8 +97,19 @@ class AuditLog(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     entity_type: Mapped[str] = mapped_column(String) # Item, Stock, etc.
     entity_id: Mapped[int] = mapped_column(Integer)
-    action: Mapped[str] = mapped_column(String) # CREATE, UPDATE, DELETE
-    changes: Mapped[dict] = mapped_column(JSON)
+    action: Mapped[str] = mapped_column(String) # CREATE, UPDATE, DELETE, SUGGEST, APPROVE, REJECT
+    changes: Mapped[dict] = mapped_column(JSON)  # Now includes before/after states
     confidence: Mapped[Optional[float]] = mapped_column(Integer, nullable=True)
     source: Mapped[str] = mapped_column(String) # USER, AI_GENERATED, AI_SCRAPED
+    user_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)  # Track which user made changes
+    approval_status: Mapped[Optional[str]] = mapped_column(String, nullable=True)  # pending, approved, rejected
+    reviewed_by: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)  # User who reviewed
+    reviewed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # Track any errors
     timestamp: Mapped[datetime] = mapped_column(server_default=func.now())
+    
+    __table_args__ = (
+        Index("ix_audit_log_entity", "entity_type", "entity_id"),
+        Index("ix_audit_log_user_id", "user_id"),
+        Index("ix_audit_log_approval_status", "approval_status"),
+    )
