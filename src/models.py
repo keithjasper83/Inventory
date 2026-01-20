@@ -5,6 +5,11 @@ from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 from src.database import Base
+import os
+
+# Determine database type from environment
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+psycopg://postgres:postgres@localhost:5432/jules_inventory")
+USE_POSTGRESQL = DATABASE_URL.startswith("postgresql")
 
 class User(Base):
     __tablename__ = "users"
@@ -50,16 +55,18 @@ class Item(Base):
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
 
-    # Full Text Search Vector
-    search_vector: Mapped[str] = mapped_column(TSVECTOR, Computed("to_tsvector('english', coalesce(name, '') || ' ' || coalesce(data::text, ''))", persisted=True))
-
     category: Mapped[Optional["Category"]] = relationship("Category", back_populates="items")
     stock: Mapped[List["Stock"]] = relationship("Stock", back_populates="item")
     media: Mapped[List["Media"]] = relationship("Media", back_populates="item")
 
-    __table_args__ = (
+# Add PostgreSQL-specific full-text search if using PostgreSQL
+if USE_POSTGRESQL:
+    Item.search_vector = mapped_column(TSVECTOR, Computed("to_tsvector('english', coalesce(name, '') || ' ' || coalesce(data::text, ''))", persisted=True))
+    Item.__table_args__ = (
         Index("ix_items_search_vector", "search_vector", postgresql_using="gin"),
     )
+else:
+    Item.__table_args__ = ()
 
 class Stock(Base):
     __tablename__ = "stock"
