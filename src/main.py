@@ -7,7 +7,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 
 from src.config import settings
 from src.dependencies import templates, get_current_user
-from src.routers import auth, items, search, locations, categories
+from src.routers import auth, items, search, locations, categories, companion
 from src.ai import ai_client
 
 app = FastAPI(title=settings.APP_NAME)
@@ -25,6 +25,7 @@ app.include_router(items.router)
 app.include_router(search.router)
 app.include_router(locations.router)
 app.include_router(categories.router)
+app.include_router(companion.router)
 
 # Root
 @app.get("/", response_class=HTMLResponse)
