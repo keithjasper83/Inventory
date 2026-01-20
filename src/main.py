@@ -7,7 +7,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 
 from src.config import settings
 from src.dependencies import templates, get_current_user
-from src.routers import auth, items, search, locations, categories, admin
+from src.routers import auth, items, search, locations, categories, admin, health
 from src.ai import ai_client
 
 app = FastAPI(title=settings.APP_NAME)
@@ -20,6 +20,7 @@ app.add_middleware(GZipMiddleware, minimum_size=1000)
 app.mount("/static", StaticFiles(directory="src/static"), name="static")
 
 # Routers
+app.include_router(health.router)
 app.include_router(auth.router)
 app.include_router(items.router)
 app.include_router(search.router)

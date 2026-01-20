@@ -1,0 +1,168 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  # Can be replaced with external database by setting DATABASE_URL environment variable
+  postgres:
+    image: postgres:15-alpine
+    container_name: jules-postgres
+    environment:
+      POSTGRES_DB: jules_inventory
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # Redis for background job queue
+  # Can be replaced with external Redis by setting REDIS_URL environment variable
+  redis:
+    image: redis:7-alpine
+    container_name: jules-redis
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # MinIO S3-compatible storage
+  # Can be replaced with external S3 or MinIO by setting S3_* environment variables
+  minio:
+    image: minio/minio:latest
+    container_name: jules-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:-minioadmin}
+    volumes:
+      - minio_data:/data
+    ports:
+      - "9000:9000"  # API
+      - "9001:9001"  # Console
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    restart: unless-stopped
+
+  # Main application
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: jules-app
+    environment:
+      # Application
+      APP_NAME: Jules Inventory
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY must be set}
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+      
+      # Admin password for initial setup
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin}
+      
+      # Database - uses internal postgres by default
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://postgres:postgres@postgres:5432/jules_inventory}
+      
+      # Redis - uses internal redis by default
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      
+      # S3/MinIO - uses internal minio by default
+      S3_ENDPOINT_URL: ${S3_ENDPOINT_URL:-http://minio:9000}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-minioadmin}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:-minioadmin}
+      S3_REGION_NAME: ${S3_REGION_NAME:-us-east-1}
+      BUCKET_MEDIA: ${BUCKET_MEDIA:-inventory-media}
+      BUCKET_DOCS: ${BUCKET_DOCS:-inventory-docs}
+      
+      # AI Configuration
+      JARVIS_BASE_URL: ${JARVIS_BASE_URL:-}
+      
+      # Security
+      TOKEN_EXPIRY_SECONDS: ${TOKEN_EXPIRY_SECONDS:-86400}
+      AI_AUTO_APPLY_CONFIDENCE: ${AI_AUTO_APPLY_CONFIDENCE:-0.95}
+      AI_MANUAL_REVIEW_THRESHOLD: ${AI_MANUAL_REVIEW_THRESHOLD:-0.80}
+    volumes:
+      - ./config:/app/config
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    command: >
+      sh -c "
+        echo 'Waiting for services...' &&
+        sleep 5 &&
+        echo 'Running database migrations...' &&
+        alembic upgrade head &&
+        echo 'Initializing storage...' &&
+        python scripts/init_storage.py || echo 'Storage init failed, continuing...' &&
+        echo 'Seeding data...' &&
+        python scripts/seed_data.py &&
+        echo 'Starting application...' &&
+        uvicorn src.main:app --host 0.0.0.0 --port 8000
+      "
+
+  # Background worker for async tasks
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: jules-worker
+    environment:
+      # Same environment as app
+      APP_NAME: Jules Inventory
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY must be set}
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://postgres:postgres@postgres:5432/jules_inventory}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      S3_ENDPOINT_URL: ${S3_ENDPOINT_URL:-http://minio:9000}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-minioadmin}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:-minioadmin}
+      S3_REGION_NAME: ${S3_REGION_NAME:-us-east-1}
+      BUCKET_MEDIA: ${BUCKET_MEDIA:-inventory-media}
+      BUCKET_DOCS: ${BUCKET_DOCS:-inventory-docs}
+      JARVIS_BASE_URL: ${JARVIS_BASE_URL:-}
+    volumes:
+      - ./config:/app/config
+    depends_on:
+      app:
+        condition: service_healthy
+    restart: unless-stopped
+    command: python -m src.worker
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  minio_data:
+    driver: local
+
+networks:
+  default:
+    name: jules-network
