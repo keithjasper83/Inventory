@@ -22,24 +22,6 @@ def require_user(user: User = Depends(get_current_user)):
         )
     return user
 
-def require_role(role: str):
-    """
-    Decorator to require a specific role for an endpoint.
-    Usage: user = Depends(require_role("admin"))
-    """
-    def role_checker(user: User = Depends(require_user)):
-        if not user.has_role(role):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Insufficient privileges. Required role: {role}"
-            )
-        return user
-    return role_checker
-
-# Common role requirements
-require_admin = require_role("admin")
-require_reviewer = require_role("reviewer")
-
 # Template config
 from fastapi.templating import Jinja2Templates
 templates = Jinja2Templates(directory="src/templates")

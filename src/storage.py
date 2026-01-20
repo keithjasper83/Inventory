@@ -1,14 +1,9 @@
 import boto3
 from botocore.exceptions import ClientError
 from src.config import settings
-from src.logging_config import get_logger
-
-logger = get_logger(__name__)
-
+from src.settings_manager import settings_manager
 
 class StorageService:
-    """Service for S3-compatible object storage operations."""
-    
     def __init__(self):
         self.s3_client = boto3.client(
             's3',
@@ -25,45 +20,36 @@ class StorageService:
         for bucket in [self.bucket_media, self.bucket_docs]:
             try:
                 self.s3_client.head_bucket(Bucket=bucket)
-                logger.info(f"Bucket '{bucket}' exists")
-            except ClientError as e:
+            except ClientError:
                 # Bucket does not exist, create it
-                try:
-                    self.s3_client.create_bucket(Bucket=bucket)
-                    logger.info(f"Created bucket '{bucket}'")
-                except ClientError as create_error:
-                    logger.error(f"Failed to create bucket '{bucket}': {create_error}")
-                    raise
+                self.s3_client.create_bucket(Bucket=bucket)
 
     def upload_file(self, file_obj, key: str, content_type: str, bucket_type: str = "media"):
         """Upload a file-like object to S3."""
         bucket = self.bucket_media if bucket_type == "media" else self.bucket_docs
-        try:
-            self.s3_client.upload_fileobj(
-                file_obj,
-                bucket,
-                key,
-                ExtraArgs={'ContentType': content_type}
-            )
-            logger.info(f"Uploaded file to {bucket}/{key}")
-            return key
-        except ClientError as e:
-            logger.error(f"Failed to upload file to {bucket}/{key}: {e}")
-            raise
+        self.s3_client.upload_fileobj(
+            file_obj,
+            bucket,
+            key,
+            ExtraArgs={'ContentType': content_type}
+        )
+        return key
 
-    def get_presigned_url(self, key: str, bucket_type: str = "media", expiration=3600):
+    def get_presigned_url(self, key: str, bucket_type: str = "media", expiration=None):
         """Generate a presigned URL for a file."""
+        if expiration is None:
+            expiration = settings_manager.get("presigned_url_expiry", 3600)
+
         bucket = self.bucket_media if bucket_type == "media" else self.bucket_docs
         try:
             response = self.s3_client.generate_presigned_url(
                 'get_object',
                 Params={'Bucket': bucket, 'Key': key},
-                ExpiresIn=expiration
+                ExpiresIn=int(expiration)
             )
-            logger.debug(f"Generated presigned URL for {bucket}/{key}")
             return response
         except ClientError as e:
-            logger.error(f"Failed to generate presigned URL for {bucket}/{key}: {e}")
+            print(f"Error generating presigned URL: {e}")
             return None
 
 storage = StorageService()

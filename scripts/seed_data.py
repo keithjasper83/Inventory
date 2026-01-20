@@ -1,52 +1,47 @@
-#!/usr/bin/env python3
-"""
-Seed development data for testing
-"""
 from sqlalchemy.orm import Session
-from src.database import engine
-from src.models import User, Category, Location, SystemSetting
-import sys
-sys.path.insert(0, '.')
+from src.database import SessionLocal, engine
+from src.models import Location, Category, User
+from src.auth import auth_service
+from src.config import settings
 
 def seed_data():
-    with Session(engine) as db:
-        # Check if data already exists
-        if db.query(User).count() > 0:
-            print("Database already has data, skipping seed")
+    db = SessionLocal()
+    try:
+        # Check if initialized
+        if db.query(Location).count() > 0:
+            print("Data already seeded.")
             return
-        
-        # Add default user
-        user = User(username="admin", password_hash="changeme")  # Change in production!
-        db.add(user)
-        
-        # Add default categories
-        categories = [
-            Category(name="Electronics", slug="electronics", schema={}),
-            Category(name="Components", slug="components", schema={}),
-            Category(name="Tools", slug="tools", schema={})
-        ]
-        for cat in categories:
-            db.add(cat)
-        
-        # Add default locations
-        locations = [
-            Location(name="Workshop", slug="workshop", path="/1/"),
-            Location(name="Storage", slug="storage", path="/2/")
-        ]
-        for loc in locations:
+
+        print("Seeding locations...")
+        locations = ["DESK", "WALL"] + [f"BOX-{i:02d}" for i in range(1, 8)]
+        for name in locations:
+            slug = name.lower().replace(" ", "-")
+            loc = Location(name=name, slug=slug, path=f"/{slug}/")
             db.add(loc)
-        
-        # Add default system settings
-        settings = [
-            SystemSetting(key="ocr_confidence_threshold", value="0.8", description="Minimum confidence for OCR results"),
-            SystemSetting(key="scrape_timeout", value="30", description="Timeout for web scraping in seconds"),
-            SystemSetting(key="max_image_size_mb", value="10", description="Maximum image upload size in MB")
-        ]
-        for setting in settings:
-            db.add(setting)
-        
+
+        print("Seeding categories...")
+        categories = ["Electronics", "Hardware", "Tools", "3D Printing", "Cables"]
+        for name in categories:
+            slug = name.lower().replace(" ", "-")
+            cat = Category(name=name, slug=slug, schema={})
+            db.add(cat)
+
+        print("Creating admin user...")
+        # Check if admin exists
+        if not db.query(User).filter(User.username == "admin").first():
+            user = User(
+                username="admin",
+                password_hash=auth_service.get_password_hash("admin") # Default password
+            )
+            db.add(user)
+
         db.commit()
-        print("✓ Seed data added successfully")
+        print("Seeding complete.")
+    except Exception as e:
+        print(f"Error seeding data: {e}")
+        db.rollback()
+    finally:
+        db.close()
 
 if __name__ == "__main__":
     seed_data()

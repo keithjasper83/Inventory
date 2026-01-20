@@ -1,41 +1,13 @@
 {% extends "base.html" %}
 
 {% block content %}
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-
 <div class="max-w-3xl mx-auto bg-white shadow sm:rounded-lg p-6">
-    <div class="flex justify-between items-center mb-6">
-        <h1 class="text-2xl font-bold">New Item</h1>
-        <button onclick="startCompanionSession()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded inline-flex items-center">
-            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>
-            <span>Pair Mobile</span>
-        </button>
-    </div>
-
-    <!-- Companion Modal -->
-    <div id="companion-modal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-        <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
-            <div class="mt-3 text-center">
-                <h3 class="text-lg leading-6 font-medium text-gray-900">Scan to Pair</h3>
-                <div class="mt-4 flex justify-center">
-                    <div id="qrcode"></div>
-                </div>
-                <div class="mt-4 py-3">
-                    <p class="text-sm text-gray-500">Scan this code with your phone camera to instantly upload a photo.</p>
-                </div>
-                <div class="items-center px-4 py-3">
-                    <button onclick="closeCompanionModal()" class="px-4 py-2 bg-gray-200 text-gray-800 text-base font-medium rounded-md w-full shadow-sm hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-300">
-                        Cancel
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
+    <h1 class="text-2xl font-bold mb-6">New Item</h1>
 
     <form action="/items" method="POST" enctype="multipart/form-data" class="space-y-6">
         <div>
             <label class="block text-sm font-medium text-gray-700">Photo (Required)</label>
-            <div class="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer" onclick="document.getElementById('photo').click()">
+            <div class="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
                 <div class="space-y-1 text-center">
                     <svg class="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true">
                         <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
@@ -53,15 +25,15 @@
         </div>
 
         <div>
-            <label for="name" class="block text-sm font-medium text-gray-700">Name</label>
-            <input type="text" name="name" id="name" placeholder="Leave blank to auto-detect" class="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-lg border-gray-300 rounded-md py-3 px-4">
-            <p class="mt-2 text-sm text-gray-500">Leave blank to save as Draft and let AI identify it.</p>
+            <label for="name" class="block text-sm font-medium text-gray-700">Name (Optional - Leave blank for Draft)</label>
+            <input type="text" name="name" id="name" class="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md">
+            <p class="mt-2 text-sm text-gray-500">If left blank, item will be saved as DRAFT and AI will attempt to identify it.</p>
         </div>
 
         <div class="grid grid-cols-1 gap-y-6 gap-x-4 sm:grid-cols-2">
             <div>
                 <label for="location_id" class="block text-sm font-medium text-gray-700">Location</label>
-                <select id="location_id" name="location_id" class="mt-1 block w-full pl-3 pr-10 py-3 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 rounded-md">
+                <select id="location_id" name="location_id" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
                     {% for loc in locations %}
                     <option value="{{ loc.id }}">{{ loc.name }}</option>
                     {% endfor %}
@@ -70,7 +42,7 @@
 
             <div>
                 <label for="category_id" class="block text-sm font-medium text-gray-700">Category</label>
-                <select id="category_id" name="category_id" onchange="loadCategorySchema(this.value)" class="mt-1 block w-full pl-3 pr-10 py-3 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 rounded-md">
+                <select id="category_id" name="category_id" onchange="loadCategorySchema(this.value)" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
                     <option value="">-- Select Category --</option>
                     {% for cat in categories %}
                     <option value="{{ cat.id }}">{{ cat.name }}</option>
@@ -89,15 +61,15 @@
 
         <div>
             <label for="quantity" class="block text-sm font-medium text-gray-700">Quantity</label>
-            <input type="number" name="quantity" id="quantity" value="1" min="1" class="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-lg border-gray-300 rounded-md py-2 px-3">
+            <input type="number" name="quantity" id="quantity" value="1" min="1" class="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md">
         </div>
 
         <div class="pt-5">
             <div class="flex justify-end">
-                <button type="button" onclick="history.back()" class="bg-white py-3 px-6 border border-gray-300 rounded-md shadow-sm text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                <button type="button" onclick="history.back()" class="bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
                     Cancel
                 </button>
-                <button type="submit" class="ml-3 inline-flex justify-center py-3 px-6 border border-transparent shadow-sm text-base font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                <button type="submit" class="ml-3 inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
                     Save Item
                 </button>
             </div>
@@ -106,8 +78,6 @@
 </div>
 
 <script>
-    let pollInterval = null;
-
     function previewImage(input) {
         if (input.files && input.files[0]) {
             var reader = new FileReader();
@@ -178,52 +148,6 @@
             }
         } catch (e) {
             console.error(e);
-        }
-    }
-
-    async function startCompanionSession() {
-        try {
-            const response = await fetch('/api/companion/start', { method: 'POST' });
-            if (!response.ok) throw new Error('Failed to start session');
-            const data = await response.json();
-            const sessionId = data.session_id;
-
-            // Generate QR Code
-            const modal = document.getElementById('companion-modal');
-            const qrContainer = document.getElementById('qrcode');
-            qrContainer.innerHTML = '';
-
-            const url = `${window.location.origin}/companion/${sessionId}`;
-            new QRCode(qrContainer, url);
-
-            modal.classList.remove('hidden');
-
-            // Start Polling
-            pollInterval = setInterval(async () => {
-                try {
-                    const statusRes = await fetch(`/api/companion/${sessionId}/status`);
-                    const statusData = await statusRes.json();
-
-                    if (statusData.status === 'completed') {
-                        clearInterval(pollInterval);
-                        window.location.href = statusData.redirect_url;
-                    }
-                } catch (e) {
-                    console.error("Polling error", e);
-                }
-            }, 2000);
-
-        } catch (e) {
-            console.error(e);
-            alert('Could not start companion session.');
-        }
-    }
-
-    function closeCompanionModal() {
-        document.getElementById('companion-modal').classList.add('hidden');
-        if (pollInterval) {
-            clearInterval(pollInterval);
-            pollInterval = null;
         }
     }
 </script>

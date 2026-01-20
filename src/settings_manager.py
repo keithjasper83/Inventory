@@ -1,38 +1,37 @@
-"""
-SettingsManager: Dynamic configuration from database
-Provides centralized access to system settings stored in DB
-"""
-from typing import Optional
 from sqlalchemy.orm import Session
 from src.models import SystemSetting
-
+from src.database import SessionLocal
+import json
 
 class SettingsManager:
-    """Manage system settings from database"""
-    
-    @staticmethod
-    def get(db: Session, key: str, default=None):
-        """Get setting value by key"""
-        setting = db.query(SystemSetting).filter(SystemSetting.key == key).first()
-        if setting:
-            return setting.value
-        return default
-    
-    @staticmethod
-    def set(db: Session, key: str, value: str, description: str = ""):
-        """Set or update setting"""
-        setting = db.query(SystemSetting).filter(SystemSetting.key == key).first()
-        if setting:
-            setting.value = value
-            if description:
-                setting.description = description
-        else:
-            setting = SystemSetting(key=key, value=value, description=description)
-            db.add(setting)
-        db.commit()
-        return setting
-    
-    @staticmethod
-    def get_all(db: Session):
-        """Get all settings"""
-        return db.query(SystemSetting).all()
+    _defaults = {
+        "ai_confidence_threshold": 0.95,
+        "scrape_timeout": 60,
+        "presigned_url_expiry": 3600,
+        "rq_retry_max": 3
+    }
+
+    def get(self, key: str, default=None):
+        db = SessionLocal()
+        try:
+            setting = db.query(SystemSetting).filter(SystemSetting.key == key).first()
+            if setting:
+                return setting.value
+            return default if default is not None else self._defaults.get(key)
+        finally:
+            db.close()
+
+    def set(self, key: str, value):
+        db = SessionLocal()
+        try:
+            setting = db.query(SystemSetting).filter(SystemSetting.key == key).first()
+            if not setting:
+                setting = SystemSetting(key=key, value=value)
+                db.add(setting)
+            else:
+                setting.value = value
+            db.commit()
+        finally:
+            db.close()
+
+settings_manager = SettingsManager()

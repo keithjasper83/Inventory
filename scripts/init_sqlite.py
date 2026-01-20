@@ -1,9 +1,10 @@
-#!/usr/bin/env python3
-"""
-Initialize SQLite database for development/testing
-"""
 from src.database import engine, Base
+from src.models import *
+
+def init_db():
+    print("Creating tables for SQLite...")
+    Base.metadata.create_all(bind=engine)
+    print("Tables created.")
 
 if __name__ == "__main__":
-    Base.metadata.create_all(bind=engine)
-    print("✓ Database tables created successfully")
+    init_db()

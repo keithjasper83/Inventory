@@ -4,7 +4,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     # Application
     APP_NAME: str = "Jules Inventory"
-    SECRET_KEY: str = os.environ.get("SECRET_KEY", "INSECURE-CHANGE-IN-PRODUCTION")
+    SECRET_KEY: str = "supersecretkey" # Change in production
 
     # Database
     DATABASE_URL: str = "postgresql+psycopg://postgres:postgres@localhost:5432/jules_inventory"

@@ -1,86 +1,67 @@
 {% extends "base.html" %}
 
-{% block title %}Admin Dashboard{% endblock %}
-
 {% block content %}
-<div class="max-w-6xl mx-auto">
-    <h1 class="text-3xl font-bold mb-6">Admin Dashboard</h1>
-    
-    <!-- RQ Job Stats -->
-    <div class="bg-white shadow rounded-lg p-6 mb-6">
-        <h2 class="text-xl font-semibold mb-4">Background Job System (RQ)</h2>
-        {% if rq_stats.available %}
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div class="bg-blue-50 p-4 rounded">
-                    <div class="text-sm text-gray-600">Workers</div>
-                    <div class="text-2xl font-bold">{{ rq_stats.workers }}</div>
-                </div>
-                <div class="bg-yellow-50 p-4 rounded">
-                    <div class="text-sm text-gray-600">Pending Jobs</div>
-                    <div class="text-2xl font-bold">{{ rq_stats.jobs_pending }}</div>
-                </div>
-                <div class="bg-red-50 p-4 rounded">
-                    <div class="text-sm text-gray-600">Failed Jobs</div>
-                    <div class="text-2xl font-bold">{{ rq_stats.jobs_failed }}</div>
-                </div>
-                <div class="bg-green-50 p-4 rounded">
-                    <div class="text-sm text-gray-600">Status</div>
-                    <div class="text-sm font-semibold text-green-600">Online</div>
-                </div>
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <h1 class="text-3xl font-bold leading-tight text-gray-900 mb-8">Admin Dashboard</h1>
+
+    <div class="grid grid-cols-1 gap-8 md:grid-cols-2">
+        <!-- System Health -->
+        <div class="bg-white overflow-hidden shadow rounded-lg">
+            <div class="px-4 py-5 sm:p-6">
+                <h3 class="text-lg leading-6 font-medium text-gray-900">System Health (Redis/RQ)</h3>
+                <dl class="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-2">
+                    <div class="px-4 py-5 bg-gray-50 shadow rounded-lg overflow-hidden sm:p-6">
+                        <dt class="text-sm font-medium text-gray-500 truncate">Queue Length</dt>
+                        <dd class="mt-1 text-3xl font-semibold text-gray-900">{{ stats.queue_length }}</dd>
+                    </div>
+                    <div class="px-4 py-5 bg-gray-50 shadow rounded-lg overflow-hidden sm:p-6">
+                        <dt class="text-sm font-medium text-gray-500 truncate">Failed Jobs</dt>
+                        <dd class="mt-1 text-3xl font-semibold text-red-600">{{ stats.failed_jobs }}</dd>
+                    </div>
+                    <div class="px-4 py-5 bg-gray-50 shadow rounded-lg overflow-hidden sm:p-6">
+                        <dt class="text-sm font-medium text-gray-500 truncate">Active Workers</dt>
+                        <dd class="mt-1 text-3xl font-semibold text-green-600">{{ stats.workers_count }}</dd>
+                    </div>
+                </dl>
+                {% if stats.error %}
+                <p class="mt-4 text-sm text-red-500">Error fetching stats: {{ stats.error }}</p>
+                {% endif %}
             </div>
-        {% else %}
-            <div class="bg-yellow-50 border border-yellow-200 rounded p-4">
-                <p class="text-yellow-800">
-                    <strong>⚠️ Redis/RQ Not Available</strong><br>
-                    Background job processing is offline. Please check your Redis configuration.
-                </p>
+        </div>
+
+        <!-- Configuration -->
+        <div class="bg-white overflow-hidden shadow rounded-lg">
+            <div class="px-4 py-5 sm:p-6">
+                <h3 class="text-lg leading-6 font-medium text-gray-900 mb-4">Configuration</h3>
+                <form action="/admin/settings" method="POST" class="space-y-4">
+                    <div>
+                        <label for="ai_confidence_threshold" class="block text-sm font-medium text-gray-700">AI Confidence Threshold (0.0 - 1.0)</label>
+                        <input type="number" step="0.01" name="ai_confidence_threshold" id="ai_confidence_threshold" value="{{ settings.ai_confidence_threshold }}" class="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md">
+                    </div>
+
+                    <div>
+                        <label for="scrape_timeout" class="block text-sm font-medium text-gray-700">Scrape Timeout (seconds)</label>
+                        <input type="number" name="scrape_timeout" id="scrape_timeout" value="{{ settings.scrape_timeout }}" class="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md">
+                    </div>
+
+                    <div>
+                        <label for="presigned_url_expiry" class="block text-sm font-medium text-gray-700">Presigned URL Expiry (seconds)</label>
+                        <input type="number" name="presigned_url_expiry" id="presigned_url_expiry" value="{{ settings.presigned_url_expiry }}" class="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md">
+                    </div>
+
+                    <div>
+                        <label for="rq_retry_max" class="block text-sm font-medium text-gray-700">Max Job Retries</label>
+                        <input type="number" name="rq_retry_max" id="rq_retry_max" value="{{ settings.rq_retry_max }}" class="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md">
+                    </div>
+
+                    <div class="pt-2">
+                        <button type="submit" class="w-full inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                            Update Settings
+                        </button>
+                    </div>
+                </form>
             </div>
-        {% endif %}
-    </div>
-    
-    <!-- System Settings -->
-    <div class="bg-white shadow rounded-lg p-6">
-        <h2 class="text-xl font-semibold mb-4">System Settings</h2>
-        
-        {% if settings %}
-            <div class="space-y-4">
-                {% for setting in settings %}
-                    <form method="POST" action="/admin/settings/{{ setting.id }}" class="border-b pb-4">
-                        <div class="flex items-start justify-between">
-                            <div class="flex-1 mr-4">
-                                <label class="block text-sm font-medium text-gray-700 mb-1">
-                                    {{ setting.key }}
-                                </label>
-                                {% if setting.description %}
-                                    <p class="text-xs text-gray-500 mb-2">{{ setting.description }}</p>
-                                {% endif %}
-                                <input 
-                                    type="text" 
-                                    name="value" 
-                                    value="{{ setting.value }}"
-                                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                                />
-                            </div>
-                            <button 
-                                type="submit"
-                                class="mt-6 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-                            >
-                                Update
-                            </button>
-                        </div>
-                    </form>
-                {% endfor %}
-            </div>
-        {% else %}
-            <p class="text-gray-600">No system settings configured yet.</p>
-            <p class="text-sm text-gray-500 mt-2">
-                Settings can be added via database migrations or the SettingsManager API.
-            </p>
-        {% endif %}
-    </div>
-    
-    <div class="mt-6 text-center">
-        <a href="/" class="text-blue-600 hover:underline">← Back to Home</a>
+        </div>
     </div>
 </div>
 {% endblock %}
