@@ -89,8 +89,19 @@ class AuditLog(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     entity_type: Mapped[str] = mapped_column(String) # Item, Stock, etc.
     entity_id: Mapped[int] = mapped_column(Integer)
-    action: Mapped[str] = mapped_column(String) # CREATE, UPDATE, DELETE
+    action: Mapped[str] = mapped_column(String) # CREATE, UPDATE, DELETE, SUGGEST
     changes: Mapped[dict] = mapped_column(JSON)
+    previous_values: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)  # For undo functionality
+    is_undone: Mapped[bool] = mapped_column(Boolean, default=False)  # Track if this change was undone
     confidence: Mapped[Optional[float]] = mapped_column(Integer, nullable=True)
     source: Mapped[str] = mapped_column(String) # USER, AI_GENERATED, AI_SCRAPED
     timestamp: Mapped[datetime] = mapped_column(server_default=func.now())
+
+class SystemSetting(Base):
+    __tablename__ = "system_settings"
+    
+    id: Mapped[int] = mapped_column(primary_key=True)
+    key: Mapped[str] = mapped_column(String, unique=True, index=True)
+    value: Mapped[str] = mapped_column(Text)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())

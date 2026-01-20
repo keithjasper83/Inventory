@@ -225,3 +225,68 @@ async def reject_changes(id: int, request: Request, db: Session = Depends(get_db
         db.commit()
 
     return RedirectResponse(url=f"/p/{id}", status_code=status.HTTP_303_SEE_OTHER)
+
+@router.get("/items/{id}/audit")
+async def get_audit_logs(id: int, request: Request, db: Session = Depends(get_db), user=Depends(get_current_user)):
+    """Get audit logs for an item"""
+    audit_logs = db.query(AuditLog).filter(
+        AuditLog.entity_type == "Item",
+        AuditLog.entity_id == id
+    ).order_by(AuditLog.timestamp.desc()).all()
+    
+    return {"audit_logs": [
+        {
+            "id": log.id,
+            "action": log.action,
+            "changes": log.changes,
+            "previous_values": log.previous_values,
+            "is_undone": log.is_undone,
+            "source": log.source,
+            "timestamp": log.timestamp.isoformat()
+        }
+        for log in audit_logs
+    ]}
+
+@router.post("/items/{id}/audit/{log_id}/undo")
+async def undo_change(id: int, log_id: int, request: Request, db: Session = Depends(get_db), user=Depends(require_user)):
+    """Undo a specific change from audit log"""
+    item = db.query(Item).filter(Item.id == id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+    
+    audit_log = db.query(AuditLog).filter(
+        AuditLog.id == log_id,
+        AuditLog.entity_type == "Item",
+        AuditLog.entity_id == id
+    ).first()
+    
+    if not audit_log:
+        raise HTTPException(status_code=404, detail="Audit log not found")
+    
+    if audit_log.is_undone:
+        raise HTTPException(status_code=400, detail="Change already undone")
+    
+    # Revert the changes if previous_values exist
+    if audit_log.previous_values:
+        for key, value in audit_log.previous_values.items():
+            if hasattr(item, key):
+                setattr(item, key, value)
+            elif key in item.data:
+                item.data[key] = value
+        
+        # Mark as undone
+        audit_log.is_undone = True
+        
+        # Create new audit log for the undo action
+        undo_audit = AuditLog(
+            entity_type="Item",
+            entity_id=item.id,
+            action="UNDO",
+            changes={"undid_log_id": log_id},
+            previous_values=audit_log.changes,
+            source="USER"
+        )
+        db.add(undo_audit)
+        db.commit()
+    
+    return RedirectResponse(url=f"/p/{id}", status_code=status.HTTP_303_SEE_OTHER)
