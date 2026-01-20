@@ -16,7 +16,7 @@ def retry_with_backoff(max_retries=3, initial_backoff=1.0, backoff_multiplier=2.
     Decorator for retrying functions with exponential backoff.
     
     Args:
-        max_retries: Maximum number of retry attempts
+        max_retries: Maximum number of retry attempts (total attempts)
         initial_backoff: Initial backoff time in seconds
         backoff_multiplier: Multiplier for backoff time after each retry
     """
@@ -26,12 +26,12 @@ def retry_with_backoff(max_retries=3, initial_backoff=1.0, backoff_multiplier=2.
             backoff = initial_backoff
             last_exception = None
             
-            for attempt in range(max_retries + 1):
+            for attempt in range(max_retries):
                 try:
                     return func(*args, **kwargs)
                 except Exception as e:
                     last_exception = e
-                    if attempt < max_retries:
+                    if attempt < max_retries - 1:
                         time.sleep(backoff)
                         backoff *= backoff_multiplier
                     else:

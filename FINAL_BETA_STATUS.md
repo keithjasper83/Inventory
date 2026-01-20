@@ -320,9 +320,10 @@ curl http://localhost:8000/readiness
 
 ```
 ┌─────────────────────────────────────────────┐
-│         All-in-One Docker Container         │
+│      Single Docker Compose Stack            │
 ├─────────────────────────────────────────────┤
 │  PostgreSQL │ Redis │ MinIO │ App │ Worker │
+│  (container) (container) (container) (container) (container) │
 └─────────────────────────────────────────────┘
 ```
 

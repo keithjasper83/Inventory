@@ -36,7 +36,7 @@
 
 4. **Start all services**
    ```bash
-   docker-compose up -d
+   docker compose up -d
    ```
 
 5. **Access the application**

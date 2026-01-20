@@ -33,6 +33,7 @@ async def readiness_check():
     Returns 200 OK only if all critical dependencies are available.
     Checks: Database, Redis
     """
+    import os
     checks = {
         "database": False,
         "redis": False
@@ -42,11 +43,17 @@ async def readiness_check():
     try:
         from sqlalchemy import text
         db = SessionLocal()
-        db.execute(text("SELECT 1"))
-        db.close()
-        checks["database"] = True
+        try:
+            db.execute(text("SELECT 1"))
+            checks["database"] = True
+        finally:
+            db.close()
     except Exception as e:
-        checks["database_error"] = str(e)
+        # Only include detailed errors in development/debug mode
+        if os.environ.get("ENVIRONMENT") in ["development", "debug"]:
+            checks["database_error"] = str(e)
+        else:
+            checks["database_error"] = "Database unavailable"
     
     # Check Redis
     try:
@@ -54,7 +61,11 @@ async def readiness_check():
         r.ping()
         checks["redis"] = True
     except Exception as e:
-        checks["redis_error"] = str(e)
+        # Only include detailed errors in development/debug mode
+        if os.environ.get("ENVIRONMENT") in ["development", "debug"]:
+            checks["redis_error"] = str(e)
+        else:
+            checks["redis_error"] = "Redis unavailable"
     
     # Overall status
     all_ready = checks["database"] and checks["redis"]

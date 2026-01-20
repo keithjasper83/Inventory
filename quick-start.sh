@@ -24,6 +24,16 @@ echo "✓ Docker is installed"
 echo "✓ Docker Compose is installed"
 echo ""
 
+# Check for curl
+if ! command -v curl &> /dev/null; then
+    echo "ERROR: curl is not installed"
+    echo "Please install curl (required for health checks)"
+    exit 1
+fi
+
+echo "✓ curl is installed"
+echo ""
+
 # Check for .env file
 if [ ! -f .env ]; then
     echo "Creating .env file from template..."
