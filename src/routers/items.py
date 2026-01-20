@@ -14,7 +14,7 @@ from src.models import Item, Media, Category, Location, Stock, AuditLog
 from src.dependencies import templates, require_user, get_current_user
 from src.storage import storage
 from src.ai import ai_client
-from src.tasks import process_item_image, scrape_item_task
+from src.tasks import process_item_image
 from src.config import settings
 
 router = APIRouter()
@@ -127,6 +127,9 @@ async def view_item_slug(slug: str, request: Request, db: Session = Depends(get_
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
 
+    # Audit Logs
+    audit_logs = db.query(AuditLog).filter(AuditLog.entity_id == item.id).order_by(AuditLog.timestamp.desc()).all()
+
     # Generate Presigned URLs for media
     media_list = []
     for m in item.media:
@@ -141,7 +144,7 @@ async def view_item_slug(slug: str, request: Request, db: Session = Depends(get_
     return templates.TemplateResponse(
         request=request,
         name="item_detail.html",
-        context={"request": request, "item": item, "user": user, "media_list": media_list}
+        context={"request": request, "item": item, "user": user, "media_list": media_list, "audit_logs": audit_logs}
     )
 
 @router.get("/p/{id}", response_class=HTMLResponse)
@@ -152,6 +155,9 @@ async def view_item_id(id: int, request: Request, db: Session = Depends(get_db),
 
     if item.slug:
         return RedirectResponse(url=f"/i/{item.slug}", status_code=status.HTTP_301_MOVED_PERMANENTLY)
+
+    # Audit Logs
+    audit_logs = db.query(AuditLog).filter(AuditLog.entity_id == item.id).order_by(AuditLog.timestamp.desc()).all()
 
     media_list = []
     for m in item.media:
@@ -166,7 +172,7 @@ async def view_item_id(id: int, request: Request, db: Session = Depends(get_db),
     return templates.TemplateResponse(
         request=request,
         name="item_detail.html",
-        context={"request": request, "item": item, "user": user, "media_list": media_list}
+        context={"request": request, "item": item, "user": user, "media_list": media_list, "audit_logs": audit_logs}
     )
 
 @router.post("/items/{id}/approve")
@@ -194,17 +200,6 @@ async def approve_changes(id: int, request: Request, db: Session = Depends(get_d
 
     return RedirectResponse(url=f"/p/{id}", status_code=status.HTTP_303_SEE_OTHER)
 
-@router.post("/items/{id}/scrape")
-async def trigger_scrape(id: int, request: Request, db: Session = Depends(get_db), user=Depends(require_user)):
-    item = db.query(Item).filter(Item.id == id).first()
-    if not item:
-        raise HTTPException(status_code=404, detail="Item not found")
-
-    q.enqueue(scrape_item_task, item.id)
-
-    # We can add a flash message mechanism later, for now just redirect
-    return RedirectResponse(url=f"/p/{id}", status_code=status.HTTP_303_SEE_OTHER)
-
 @router.post("/items/{id}/reject")
 async def reject_changes(id: int, request: Request, db: Session = Depends(get_db), user=Depends(require_user)):
     item = db.query(Item).filter(Item.id == id).first()
@@ -223,5 +218,54 @@ async def reject_changes(id: int, request: Request, db: Session = Depends(get_db
         )
         db.add(audit)
         db.commit()
+
+    return RedirectResponse(url=f"/p/{id}", status_code=status.HTTP_303_SEE_OTHER)
+@router.post("/items/{id}/audit/{log_id}/undo")
+async def undo_change(id: int, log_id: int, request: Request, db: Session = Depends(get_db), user=Depends(require_user)):
+    item = db.query(Item).filter(Item.id == id).first()
+    log = db.query(AuditLog).filter(AuditLog.id == log_id, AuditLog.entity_id == id).first()
+
+    if not item or not log:
+        raise HTTPException(status_code=404, detail="Item or Log not found")
+
+    if log.is_undone:
+        raise HTTPException(status_code=400, detail="Change already undone")
+
+    if not log.previous_values:
+        raise HTTPException(status_code=400, detail="Cannot undo: No previous values recorded")
+
+    # Apply previous values
+    # We need to be careful about what 'previous_values' contains.
+    # Assuming it's a dict of {field: old_value} matching Item columns or Item.data keys.
+
+    current_data = dict(item.data)
+    changes_made = {}
+
+    for key, value in log.previous_values.items():
+        # Check if key is a column or data key
+        if hasattr(item, key) and key not in ['data', 'id', 'created_at']:
+            setattr(item, key, value)
+            changes_made[key] = value
+        else:
+            # Assume it's in data
+            current_data[key] = value
+            changes_made[key] = value
+
+    item.data = current_data
+
+    # Mark log as undone
+    log.is_undone = True
+
+    # Create new audit log for the undo
+    undo_log = AuditLog(
+        entity_type="Item",
+        entity_id=item.id,
+        action="UNDO",
+        changes=changes_made, # What we reverted TO
+        source="USER",
+        confidence=100
+    )
+    db.add(undo_log)
+    db.commit()
 
     return RedirectResponse(url=f"/p/{id}", status_code=status.HTTP_303_SEE_OTHER)

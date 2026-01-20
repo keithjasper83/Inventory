@@ -4,10 +4,9 @@ from src.database import SessionLocal
 from src.models import Item, Media, AuditLog
 from src.ai import ai_client
 from src.storage import storage
+from src.settings_manager import settings_manager
 import asyncio
 import io
-import requests
-import uuid
 from PIL import Image
 from rq import get_current_job
 
@@ -36,6 +35,7 @@ def generate_thumbnails(image_bytes: bytes, item_id: int, original_filename: str
             "thumbnail": (200, 200)
         }
 
+        import uuid
         base_name = original_filename.rsplit('/', 1)[-1]
 
         for size_name, dimensions in sizes.items():
@@ -54,99 +54,6 @@ def generate_thumbnails(image_bytes: bytes, item_id: int, original_filename: str
     except Exception as e:
         print(f"Error generating thumbnails: {e}")
         return {}
-
-def perform_scraping(item: Item, query_text: str, db: Session):
-    """
-    Performs the scraping logic: Find URL -> Scrape -> Download Docs -> Audit.
-    """
-    print(f"Scraping for item {item.id} with query: {query_text}")
-
-    async def run_scrape():
-        url = await ai_client.find_product_url(query_text)
-        if url:
-            scrape_result = await ai_client.scrape_url(url)
-            return url, scrape_result
-        return None, None
-
-    try:
-        url, scrape_result = asyncio.run(run_scrape())
-    except Exception as e:
-        print(f"Scrape execution failed: {e}")
-        return
-
-    if scrape_result:
-        # Save scraped URL
-        pending = dict(item.pending_changes or {})
-        pending['source_url'] = url
-
-        downloaded_docs = []
-
-        # Helper to download and save
-        def save_doc(doc_url, prefix="doc"):
-            try:
-                resp = requests.get(doc_url, timeout=30)
-                if resp.status_code == 200:
-                    key = f"items/{item.id}/docs/{prefix}-{uuid.uuid4()}.pdf"
-                    storage.upload_file(io.BytesIO(resp.content), key, "application/pdf", bucket_type="docs")
-
-                    media_entry = Media(
-                        item_id=item.id,
-                        type="pdf",
-                        s3_key=key,
-                        metadata_json={"source_url": doc_url}
-                    )
-                    db.add(media_entry)
-                    downloaded_docs.append(key)
-            except Exception as e:
-                print(f"Error downloading {doc_url}: {e}")
-
-        if scrape_result.get('pdf_snapshot'):
-            save_doc(scrape_result['pdf_snapshot'], "snapshot")
-
-        for sheet in scrape_result.get('datasheets', []):
-            save_doc(sheet, "datasheet")
-
-        item.pending_changes = pending
-
-        audit = AuditLog(
-            entity_type="Item",
-            entity_id=item.id,
-            action="SUGGEST",
-            changes={"scraped_url": url, "docs": len(downloaded_docs)},
-            source="AI_SCRAPED",
-            confidence=100
-        )
-        db.add(audit)
-        db.commit()
-
-def scrape_item_task(item_id: int):
-    """
-    Task to explicitly scrape for an item using its Name or OCR text.
-    """
-    db = SessionLocal()
-    try:
-        item = db.query(Item).filter(Item.id == item_id).first()
-        if not item:
-            print(f"Item {item_id} not found.")
-            return
-
-        query_text = item.name
-
-        # If no name, try to check pending changes for OCR
-        if not query_text and item.pending_changes:
-            query_text = item.pending_changes.get('ocr_text')
-
-        # If still nothing, abort
-        if not query_text:
-            print(f"No text available to scrape for item {item_id}")
-            return
-
-        perform_scraping(item, query_text, db)
-
-    except Exception as e:
-        print(f"Error in scrape_item_task: {e}")
-    finally:
-        db.close()
 
 def process_item_image(item_id: int, media_id: int):
     """
@@ -257,10 +164,69 @@ def process_item_image(item_id: int, media_id: int):
 
         db.commit()
 
-        # 4. Scrape if high confidence (>= 0.95)
-        # Spec: "If barcode, OCR... detected... If >=95% confidence... Scrape"
-        if ocr_text and ocr_confidence >= 0.95:
-            perform_scraping(item, ocr_text, db)
+        # 4. Scrape if high confidence (>= 0.95 or setting)
+        threshold = settings_manager.get("ai_confidence_threshold", 0.95)
+
+        if ocr_text and ocr_confidence >= threshold:
+            async def run_scrape():
+                url = await ai_client.find_product_url(ocr_text)
+                if url:
+                    scrape_result = await ai_client.scrape_url(url)
+                    return url, scrape_result
+                return None, None
+
+            url, scrape_result = asyncio.run(run_scrape())
+
+            if scrape_result:
+                # Save scraped URL
+                pending = dict(item.pending_changes or {})
+                pending['source_url'] = url
+
+                # Handle Datasheets/PDFs
+                # Assuming scrape_result structure: {'datasheets': ['url1'], 'pdf_snapshot': 'url2'}
+                import requests
+
+                downloaded_docs = []
+
+                # Helper to download and save
+                def save_doc(doc_url, prefix="doc"):
+                    try:
+                        timeout = settings_manager.get("scrape_timeout", 30)
+                        resp = requests.get(doc_url, timeout=timeout)
+                        if resp.status_code == 200:
+                            import uuid
+                            key = f"items/{item.id}/docs/{prefix}-{uuid.uuid4()}.pdf"
+                            storage.upload_file(io.BytesIO(resp.content), key, "application/pdf", bucket_type="docs")
+
+                            media_entry = Media(
+                                item_id=item.id,
+                                type="pdf",
+                                s3_key=key,
+                                metadata_json={"source_url": doc_url}
+                            )
+                            db.add(media_entry)
+                            downloaded_docs.append(key)
+                    except Exception as e:
+                        print(f"Error downloading {doc_url}: {e}")
+
+                if scrape_result.get('pdf_snapshot'):
+                    save_doc(scrape_result['pdf_snapshot'], "snapshot")
+
+                for sheet in scrape_result.get('datasheets', []):
+                    save_doc(sheet, "datasheet")
+
+                item.pending_changes = pending
+
+                audit = AuditLog(
+                    entity_type="Item",
+                    entity_id=item.id,
+                    action="SUGGEST",
+                    changes={"scraped_url": url, "docs": len(downloaded_docs)},
+                    source="AI_SCRAPED",
+                    confidence=100
+                )
+                db.add(audit)
+                db.commit()
 
     except Exception as e:
         print(f"Error processing item image: {e}")

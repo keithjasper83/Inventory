@@ -1,6 +1,7 @@
 import boto3
 from botocore.exceptions import ClientError
 from src.config import settings
+from src.settings_manager import settings_manager
 
 class StorageService:
     def __init__(self):
@@ -34,14 +35,17 @@ class StorageService:
         )
         return key
 
-    def get_presigned_url(self, key: str, bucket_type: str = "media", expiration=3600):
+    def get_presigned_url(self, key: str, bucket_type: str = "media", expiration=None):
         """Generate a presigned URL for a file."""
+        if expiration is None:
+            expiration = settings_manager.get("presigned_url_expiry", 3600)
+
         bucket = self.bucket_media if bucket_type == "media" else self.bucket_docs
         try:
             response = self.s3_client.generate_presigned_url(
                 'get_object',
                 Params={'Bucket': bucket, 'Key': key},
-                ExpiresIn=expiration
+                ExpiresIn=int(expiration)
             )
             return response
         except ClientError as e:

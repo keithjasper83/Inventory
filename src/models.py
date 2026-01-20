@@ -1,10 +1,26 @@
 from datetime import datetime
 from typing import List, Optional
+import os
 from sqlalchemy import String, Integer, Boolean, ForeignKey, DateTime, Text, Index, Computed, JSON
-from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 from src.database import Base
+from src.config import settings
+
+# Handle TSVECTOR for non-Postgres environments (e.g. tests)
+try:
+    from sqlalchemy.dialects.postgresql import TSVECTOR, JSONB
+except ImportError:
+    TSVECTOR = Text
+    JSONB = JSON
+
+if "sqlite" in settings.DATABASE_URL or os.environ.get("TEST_MODE"):
+    TSVECTOR = Text
+    # SQLite doesn't support JSONB, so we map it to generic JSON or Text if needed,
+    # but SQLAlchemy's JSON type handles serialization for SQLite.
+    # However, we imported JSONB from postgresql dialect which might cause issues if used directly.
+    # We used JSON in the code, which is good.
+    pass
 
 class User(Base):
     __tablename__ = "users"
@@ -51,15 +67,19 @@ class Item(Base):
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
 
     # Full Text Search Vector
-    search_vector: Mapped[str] = mapped_column(TSVECTOR, Computed("to_tsvector('english', coalesce(name, '') || ' ' || coalesce(data::text, ''))", persisted=True))
+    # Conditional definition for compatibility
+    if "sqlite" not in settings.DATABASE_URL and not os.environ.get("TEST_MODE"):
+        search_vector: Mapped[str] = mapped_column(TSVECTOR, Computed("to_tsvector('english', coalesce(name, '') || ' ' || coalesce(data::text, ''))", persisted=True))
+        __table_args__ = (
+            Index("ix_items_search_vector", "search_vector", postgresql_using="gin"),
+        )
+    else:
+        # Mock column for SQLite to avoid attribute errors
+        search_vector: Mapped[str] = mapped_column(String, nullable=True)
 
     category: Mapped[Optional["Category"]] = relationship("Category", back_populates="items")
     stock: Mapped[List["Stock"]] = relationship("Stock", back_populates="item")
     media: Mapped[List["Media"]] = relationship("Media", back_populates="item")
-
-    __table_args__ = (
-        Index("ix_items_search_vector", "search_vector", postgresql_using="gin"),
-    )
 
 class Stock(Base):
     __tablename__ = "stock"
@@ -89,8 +109,18 @@ class AuditLog(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     entity_type: Mapped[str] = mapped_column(String) # Item, Stock, etc.
     entity_id: Mapped[int] = mapped_column(Integer)
-    action: Mapped[str] = mapped_column(String) # CREATE, UPDATE, DELETE
+    action: Mapped[str] = mapped_column(String) # CREATE, UPDATE, DELETE, SUGGEST, UNDO
     changes: Mapped[dict] = mapped_column(JSON)
+    previous_values: Mapped[dict] = mapped_column(JSON, server_default='{}')
+    is_undone: Mapped[bool] = mapped_column(Boolean, default=False)
     confidence: Mapped[Optional[float]] = mapped_column(Integer, nullable=True)
     source: Mapped[str] = mapped_column(String) # USER, AI_GENERATED, AI_SCRAPED
     timestamp: Mapped[datetime] = mapped_column(server_default=func.now())
+
+class SystemSetting(Base):
+    __tablename__ = "system_settings"
+
+    key: Mapped[str] = mapped_column(String, primary_key=True)
+    value: Mapped[dict] = mapped_column(JSON) # Store as JSON for type flexibility
+    description: Mapped[str] = mapped_column(String, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
