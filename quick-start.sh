@@ -75,6 +75,9 @@ if [ ! -f .env ]; then
         echo "✓ ADMIN_PASSWORD has been set"
     fi
     
+    # Clear password from memory
+    unset ADMIN_PASSWORD
+    
     echo ""
     echo "Configuration complete!"
     echo ""

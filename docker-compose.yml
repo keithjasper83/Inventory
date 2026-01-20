@@ -71,8 +71,8 @@ services:
       SECRET_KEY: ${SECRET_KEY:?SECRET_KEY must be set}
       ENVIRONMENT: ${ENVIRONMENT:-production}
       
-      # Admin password for initial setup
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin}
+      # Admin password for initial setup (REQUIRED - no default for security)
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?ADMIN_PASSWORD must be set}
       
       # Database - uses internal postgres by default
       DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://postgres:postgres@postgres:5432/jules_inventory}

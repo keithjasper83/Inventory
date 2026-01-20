@@ -50,10 +50,10 @@ def seed_data():
                         print("ERROR: Password must be at least 8 characters!")
                         sys.exit(1)
                 else:
-                    # Non-interactive mode (Docker) - use default but warn
-                    print("WARNING: Using default admin password. CHANGE THIS IMMEDIATELY!")
-                    print("Set ADMIN_PASSWORD environment variable for production deployment.")
-                    admin_password = "admin"
+                    # Non-interactive mode (Docker) - require ADMIN_PASSWORD
+                    print("ERROR: ADMIN_PASSWORD environment variable must be set!")
+                    print("Set ADMIN_PASSWORD=your-secure-password in your environment.")
+                    sys.exit(1)
             
             user = User(
                 username="admin",

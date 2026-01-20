@@ -18,7 +18,7 @@ fi
 echo "Checking service availability..."
 
 # Check PostgreSQL
-if ! python3 -c "import psycopg; psycopg.connect('$DATABASE_URL', connect_timeout=3).close()" 2>/dev/null; then
+if ! python3 -c "import psycopg; conn = psycopg.connect('$DATABASE_URL', connect_timeout=3); conn.close()" 2>/dev/null; then
     echo "⚠ WARNING: PostgreSQL not available at $DATABASE_URL"
     echo "  The application will fail to start without database connectivity."
     echo "  Please ensure PostgreSQL is running and DATABASE_URL is correct."
