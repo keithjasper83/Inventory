@@ -314,12 +314,45 @@ This document provides the definitive feature list for Version 1.0 of the Jules 
 ## Known Limitations (Not Bugs)
 
 ### Expected Behaviors
+These are design decisions, not bugs:
+
 1. **Jarvis AI Service** - Optional, not required for core functionality
 2. **SQLite Mode** - Limited FTS capability (PostgreSQL recommended)
 3. **Single Admin** - Only one admin account seeded by default
-4. **No SSO** - Username/password only (v2 feature)
-5. **English Only** - UI and docs in English (i18n in v2)
-6. **Single Organization** - No multi-tenancy (v2 feature)
+4. **No SSO** - Username/password only (not needed for personal workshop)
+5. **Single Resistor Recognition** - Identifies one resistor at a time (bulk counting in v2)
+6. **English Only** - UI and docs in English (not a priority for single-user)
+7. **Single Organization** - No multi-tenancy (not needed for personal workshop)
+
+---
+
+## Potential v1.1 Features (Under Consideration)
+
+### Counting+ 🎯 High Priority
+A highly requested feature for bulk component cataloging:
+
+**What It Does**:
+- Take a photo of many resistors laid out in rows (no overlap/crossing)
+- AI counts and identifies each resistor by color bands
+- Groups by value (e.g., "47x 10kΩ, 23x 100Ω, 5x 1MΩ")
+- Flags resistors that couldn't be identified
+- Batch add to inventory with one confirmation
+
+**Benefits**:
+- Count hundreds of resistors in seconds instead of 30+ minutes
+- Perfect for processing bulk orders
+- Dramatically reduces tedious data entry
+- Calibration mode to handle unclear bands
+
+**Requirements**:
+- Components arranged in straight lines
+- Minimal overlap or crossing
+- Good lighting and focus
+- Clear color bands
+
+**Status**: Evaluating for v1.1 or v2.0 Phase 1  
+**Decision**: After beta testing feedback  
+**Vote**: Highly requested by workshop users
 
 ---
 
