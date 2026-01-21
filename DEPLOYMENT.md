@@ -36,7 +36,7 @@
 
 4. **Start all services**
    ```bash
-   docker-compose up -d
+   docker compose up -d
    ```
 
 5. **Access the application**
@@ -83,18 +83,18 @@ docker-compose up -d
 
 #### Option 2: Split Services (Recommended for Production)
 
-Use external database, Redis, and S3 for better scalability and reliability.
+Use external database, Redis, and self-hosted MinIO for better scalability and reliability.
 
 1. **Set up external services**
    - PostgreSQL 15+ (managed or self-hosted)
    - Redis 7+ (managed or self-hosted)
-   - MinIO or AWS S3
+   - Self-hosted MinIO (S3-compatible storage)
 
 2. **Update .env with external service URLs**
    ```bash
    DATABASE_URL=postgresql+psycopg://user:pass@db-host:5432/jules
    REDIS_URL=redis://redis-host:6379/0
-   S3_ENDPOINT_URL=https://s3.amazonaws.com
+   S3_ENDPOINT_URL=https://your-minio-host:9000
    S3_ACCESS_KEY=your-access-key
    S3_SECRET_KEY=your-secret-key
    ```
@@ -150,7 +150,7 @@ For development or when Docker is not available.
 - Python 3.12+
 - PostgreSQL 15+
 - Redis 7+
-- MinIO or S3-compatible storage
+- Self-hosted MinIO (S3-compatible storage - NOT AWS)
 
 ### Steps
 

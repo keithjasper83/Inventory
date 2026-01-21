@@ -5,6 +5,7 @@ class Settings(BaseSettings):
     # Application
     APP_NAME: str = "Jules Inventory"
     SECRET_KEY: str = "supersecretkey" # Change in production
+    ENVIRONMENT: str = "development"
 
     # Database
     DATABASE_URL: str = "postgresql+psycopg://postgres:postgres@localhost:5432/jules_inventory"

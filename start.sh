@@ -18,7 +18,16 @@ fi
 echo "Checking service availability..."
 
 # Check PostgreSQL
-if ! python3 -c "import psycopg; conn = psycopg.connect('$DATABASE_URL', connect_timeout=3); conn.close()" 2>/dev/null; then
+PG_CHECK_SCRIPT="
+from sqlalchemy import create_engine
+import os, sys
+url = os.environ.get('DATABASE_URL')
+engine = create_engine(url)
+conn = engine.connect()
+conn.close()
+"
+
+if ! python3 -c "$PG_CHECK_SCRIPT" 2>/dev/null; then
     echo "⚠ WARNING: PostgreSQL not available at $DATABASE_URL"
     echo "  The application will fail to start without database connectivity."
     echo "  Please ensure PostgreSQL is running and DATABASE_URL is correct."
@@ -55,4 +64,8 @@ echo "Press Ctrl+C to stop"
 trap "echo 'Shutting down...'; kill $WORKER_PID 2>/dev/null; exit 0" INT TERM
 
 # Start uvicorn
-uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
+if [ "${ENVIRONMENT}" = "development" ]; then
+    uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
+else
+    uvicorn src.main:app --host 0.0.0.0 --port 8000
+fi

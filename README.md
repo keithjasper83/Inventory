@@ -16,7 +16,7 @@ A local-first, AI-assisted workshop inventory system designed for fast photo cap
 - PostgreSQL (FTS)
 - Redis + RQ (background jobs)
 - TailwindCSS (UI)
-- S3-compatible object storage (MinIO recommended)
+- Self-hosted MinIO for S3-compatible object storage (NOT AWS - all data stays in container/persistent storage)
 - AI models hosted on Jarvis (desktop GPU) via VPN
 
 ## Security
@@ -48,7 +48,8 @@ The quick-start script will:
 - ✅ Check Docker installation
 - ✅ Generate secure SECRET_KEY
 - ✅ Prompt for admin password
-- ✅ Start all services (PostgreSQL, Redis, MinIO, App)
+- ✅ Generate secure MinIO and PostgreSQL credentials
+- ✅ Start all services (PostgreSQL, Redis, self-hosted MinIO, App)
 - ✅ Wait for services to be ready
 
 See [DEPLOYMENT.md](DEPLOYMENT.md) for:
@@ -66,7 +67,7 @@ For development or when Docker is not available:
 - Python 3.12+
 - PostgreSQL
 - Redis
-- S3-compatible storage (MinIO)
+- Self-hosted MinIO (S3-compatible storage - NOT AWS)
 
 ### Installation
 

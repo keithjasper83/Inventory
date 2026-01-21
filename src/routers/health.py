@@ -4,9 +4,11 @@ Used for load balancer health checks and monitoring.
 """
 from fastapi import APIRouter, status
 from fastapi.responses import JSONResponse
+from sqlalchemy import text
 from src.database import SessionLocal
 from src.config import settings
 import redis
+import os
 
 router = APIRouter()
 
@@ -40,13 +42,18 @@ async def readiness_check():
     
     # Check database
     try:
-        from sqlalchemy import text
         db = SessionLocal()
-        db.execute(text("SELECT 1"))
-        db.close()
-        checks["database"] = True
+        try:
+            db.execute(text("SELECT 1"))
+            checks["database"] = True
+        finally:
+            db.close()
     except Exception as e:
-        checks["database_error"] = str(e)
+        # Only include detailed errors in development/debug mode
+        if os.environ.get("ENVIRONMENT") in ["development", "debug"]:
+            checks["database_error"] = str(e)
+        else:
+            checks["database_error"] = "Database unavailable"
     
     # Check Redis
     try:
@@ -54,7 +61,11 @@ async def readiness_check():
         r.ping()
         checks["redis"] = True
     except Exception as e:
-        checks["redis_error"] = str(e)
+        # Only include detailed errors in development/debug mode
+        if os.environ.get("ENVIRONMENT") in ["development", "debug"]:
+            checks["redis_error"] = str(e)
+        else:
+            checks["redis_error"] = "Redis unavailable"
     
     # Overall status
     all_ready = checks["database"] and checks["redis"]

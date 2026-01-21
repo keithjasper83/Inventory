@@ -24,6 +24,16 @@ echo "✓ Docker is installed"
 echo "✓ Docker Compose is installed"
 echo ""
 
+# Check for curl
+if ! command -v curl &> /dev/null; then
+    echo "ERROR: curl is not installed"
+    echo "Please install curl (required for health checks)"
+    exit 1
+fi
+
+echo "✓ curl is installed"
+echo ""
+
 # Check for .env file
 if [ ! -f .env ]; then
     echo "Creating .env file from template..."
@@ -77,6 +87,51 @@ if [ ! -f .env ]; then
     
     # Clear password from memory
     unset ADMIN_PASSWORD
+    
+    echo ""
+    echo "3. S3/MinIO Storage Credentials (generating secure credentials)"
+    echo ""
+    
+    # Generate MinIO credentials
+    S3_ACCESS_KEY=$(python3 -c "import secrets; print(secrets.token_urlsafe(16))" 2>/dev/null)
+    S3_SECRET_KEY=$(python3 -c "import secrets; print(secrets.token_urlsafe(32))" 2>/dev/null)
+    
+    if [ -z "$S3_ACCESS_KEY" ] || [ -z "$S3_SECRET_KEY" ]; then
+        echo "ERROR: Unable to generate secure MinIO credentials"
+        echo "Python's secrets module is required for secure credential generation"
+        exit 1
+    fi
+    
+    if command -v sed &> /dev/null; then
+        sed -i "s|^S3_ACCESS_KEY=.*|S3_ACCESS_KEY=$S3_ACCESS_KEY|" .env
+        sed -i "s|^S3_SECRET_KEY=.*|S3_SECRET_KEY=$S3_SECRET_KEY|" .env
+        echo "✓ S3_ACCESS_KEY has been generated and set"
+        echo "✓ S3_SECRET_KEY has been generated and set"
+    fi
+    
+    # Generate and set POSTGRES_PASSWORD
+    echo ""
+    echo "4. PostgreSQL Database Password (generating secure password)"
+    echo ""
+    
+    POSTGRES_PASSWORD=$(python3 -c "import secrets; print(secrets.token_urlsafe(24))" 2>/dev/null)
+    
+    if [ -z "$POSTGRES_PASSWORD" ]; then
+        echo "ERROR: Unable to generate secure database password"
+        echo "Python's secrets module is required for secure password generation"
+        exit 1
+    fi
+    
+    if command -v sed &> /dev/null; then
+        sed -i "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=$POSTGRES_PASSWORD|" .env
+        # Update DATABASE_URL with the new password
+        sed -i "s|^DATABASE_URL=.*|DATABASE_URL=postgresql+psycopg://postgres:$POSTGRES_PASSWORD@postgres:5432/jules_inventory|" .env
+        echo "✓ POSTGRES_PASSWORD has been generated and set"
+        echo "✓ DATABASE_URL has been updated with the password"
+    fi
+    
+    # Clear passwords from memory
+    unset POSTGRES_PASSWORD S3_ACCESS_KEY S3_SECRET_KEY
     
     echo ""
     echo "Configuration complete!"

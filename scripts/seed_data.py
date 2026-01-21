@@ -54,6 +54,11 @@ def seed_data():
                     print("ERROR: ADMIN_PASSWORD environment variable must be set!")
                     print("Set ADMIN_PASSWORD=your-secure-password in your environment.")
                     sys.exit(1)
+            else:
+                # Validate password from environment
+                if len(admin_password) < 8:
+                    print("ERROR: ADMIN_PASSWORD must be at least 8 characters!")
+                    sys.exit(1)
             
             user = User(
                 username="admin",
