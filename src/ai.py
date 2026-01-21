@@ -39,6 +39,44 @@ class AIClient:
             resp.raise_for_status()
             return resp.json()
 
+    async def count_resistors_bulk(self, image_bytes: bytes) -> Dict[str, Any]:
+        """
+        Count and identify multiple resistors from a single image.
+        
+        Expected to return:
+        {
+            "resistors": [
+                {
+                    "value": "10k",
+                    "ohms": 10000,
+                    "tolerance": "5%",
+                    "confidence": 0.98,
+                    "position": {"x": 100, "y": 150}
+                },
+                ...
+            ],
+            "total_count": 47,
+            "failed_count": 2,
+            "grouped": {
+                "10k": 23,
+                "100": 15,
+                "1M": 9
+            }
+        }
+        """
+        if not self.base_url:
+            raise ValueError("Jarvis URL not configured")
+
+        async with httpx.AsyncClient() as client:
+            files = {'file': image_bytes}
+            resp = await client.post(
+                f"{self.base_url}/api/resistor/bulk-count", 
+                files=files, 
+                timeout=120.0  # Longer timeout for processing many resistors
+            )
+            resp.raise_for_status()
+            return resp.json()
+
     async def get_embeddings(self, text: Optional[str] = None, image_bytes: Optional[bytes] = None) -> List[float]:
         """Get embeddings for text or image."""
         if not self.base_url:

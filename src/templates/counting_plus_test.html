@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Counting+ Test Interface</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-900 text-white min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <div class="max-w-6xl mx-auto">
+            <div class="bg-gray-800 rounded-lg shadow-lg p-6 mb-6">
+                <h1 class="text-3xl font-bold mb-2">🧪 Counting+ Test Interface</h1>
+                <p class="text-gray-400 mb-4">Test and validate bulk resistor counting functionality</p>
+                
+                <div class="bg-yellow-900 border border-yellow-700 rounded-lg p-4 mb-6">
+                    <h2 class="font-semibold text-yellow-300 mb-2">⚠️ Test Mode</h2>
+                    <p class="text-yellow-200 text-sm">
+                        This interface provides detailed diagnostic information.
+                        Use this to validate AI accuracy before using in production.
+                    </p>
+                </div>
+                
+                <form id="test-form" class="space-y-4">
+                    <div class="border-2 border-dashed border-gray-600 rounded-lg p-8 text-center hover:border-blue-500 transition">
+                        <input type="file" id="test-photo" accept="image/*" class="hidden" required>
+                        <label for="test-photo" class="cursor-pointer">
+                            <svg class="mx-auto h-12 w-12 text-gray-500" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                                <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                            </svg>
+                            <span class="mt-2 block text-sm font-medium">Upload Test Photo</span>
+                        </label>
+                    </div>
+                    
+                    <div id="preview-section" class="hidden">
+                        <img id="preview" class="max-w-full h-auto rounded-lg mb-2" alt="Preview">
+                        <p id="filename" class="text-sm text-gray-400"></p>
+                    </div>
+                    
+                    <button type="submit" class="w-full bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700">
+                        🔬 Run Test Analysis
+                    </button>
+                </form>
+            </div>
+            
+            <!-- Results Section -->
+            <div id="results" class="hidden space-y-6">
+                <!-- System Status -->
+                <div class="bg-gray-800 rounded-lg shadow-lg p-6">
+                    <h2 class="text-xl font-bold mb-4">System Status</h2>
+                    <div id="system-status" class="grid grid-cols-2 gap-4"></div>
+                </div>
+                
+                <!-- Analysis Summary -->
+                <div class="bg-gray-800 rounded-lg shadow-lg p-6">
+                    <h2 class="text-xl font-bold mb-4">Analysis Summary</h2>
+                    <div id="summary" class="grid grid-cols-3 gap-4"></div>
+                </div>
+                
+                <!-- Validation Metrics -->
+                <div class="bg-gray-800 rounded-lg shadow-lg p-6">
+                    <h2 class="text-xl font-bold mb-4">Validation Metrics</h2>
+                    <div id="validation" class="grid grid-cols-4 gap-4"></div>
+                </div>
+                
+                <!-- Grouped Results -->
+                <div class="bg-gray-800 rounded-lg shadow-lg p-6">
+                    <h2 class="text-xl font-bold mb-4">Grouped by Value</h2>
+                    <div id="grouped" class="flex flex-wrap gap-2"></div>
+                </div>
+                
+                <!-- Detailed Results -->
+                <div class="bg-gray-800 rounded-lg shadow-lg p-6">
+                    <h2 class="text-xl font-bold mb-4">Detailed Results</h2>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm">
+                            <thead class="bg-gray-700">
+                                <tr>
+                                    <th class="px-4 py-2 text-left">#</th>
+                                    <th class="px-4 py-2 text-left">Value</th>
+                                    <th class="px-4 py-2 text-left">Ohms</th>
+                                    <th class="px-4 py-2 text-left">Tolerance</th>
+                                    <th class="px-4 py-2 text-left">Confidence</th>
+                                    <th class="px-4 py-2 text-left">Position</th>
+                                    <th class="px-4 py-2 text-left">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="detailed-results" class="divide-y divide-gray-700">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <!-- Raw JSON -->
+                <div class="bg-gray-800 rounded-lg shadow-lg p-6">
+                    <h2 class="text-xl font-bold mb-4">Raw Response (JSON)</h2>
+                    <pre id="raw-json" class="bg-gray-900 p-4 rounded text-xs overflow-x-auto"></pre>
+                </div>
+                
+                <div class="text-center">
+                    <button onclick="location.reload()" class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700">
+                        Run Another Test
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('test-photo').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    document.getElementById('preview').src = e.target.result;
+                    document.getElementById('filename').textContent = file.name;
+                    document.getElementById('preview-section').classList.remove('hidden');
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+        
+        document.getElementById('test-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const file = document.getElementById('test-photo').files[0];
+            if (!file) return;
+            
+            const btn = e.target.querySelector('button');
+            btn.disabled = true;
+            btn.textContent = '🔄 Analyzing...';
+            
+            try {
+                const formData = new FormData();
+                formData.append('photo', file);
+                
+                const response = await fetch('/api/counting-plus/test-analyze', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Test failed');
+                }
+                
+                const data = await response.json();
+                displayTestResults(data);
+                
+                document.getElementById('results').classList.remove('hidden');
+                document.getElementById('results').scrollIntoView({ behavior: 'smooth' });
+                
+            } catch (error) {
+                alert('Test failed: ' + error.message);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '🔬 Run Test Analysis';
+            }
+        });
+        
+        function displayTestResults(data) {
+            // System Status
+            const systemHtml = `
+                <div class="bg-${data.jarvis_available ? 'green' : 'yellow'}-900 p-4 rounded">
+                    <div class="text-${data.jarvis_available ? 'green' : 'yellow'}-300 text-sm">Jarvis AI</div>
+                    <div class="text-2xl font-bold">${data.jarvis_available ? '✓ Connected' : '⚠ Mock Data'}</div>
+                </div>
+                <div class="bg-${data.test_mode ? 'yellow' : 'blue'}-900 p-4 rounded">
+                    <div class="text-${data.test_mode ? 'yellow' : 'blue'}-300 text-sm">Mode</div>
+                    <div class="text-2xl font-bold">${data.test_mode ? 'Test' : 'Production'}</div>
+                </div>
+            `;
+            document.getElementById('system-status').innerHTML = systemHtml;
+            
+            // Summary
+            const summaryHtml = `
+                <div class="bg-blue-900 p-4 rounded">
+                    <div class="text-blue-300 text-sm">Total Found</div>
+                    <div class="text-3xl font-bold">${data.total_count || 0}</div>
+                </div>
+                <div class="bg-green-900 p-4 rounded">
+                    <div class="text-green-300 text-sm">Identified</div>
+                    <div class="text-3xl font-bold">${(data.total_count || 0) - (data.failed_count || 0)}</div>
+                </div>
+                <div class="bg-red-900 p-4 rounded">
+                    <div class="text-red-300 text-sm">Failed</div>
+                    <div class="text-3xl font-bold">${data.failed_count || 0}</div>
+                </div>
+            `;
+            document.getElementById('summary').innerHTML = summaryHtml;
+            
+            // Validation
+            const val = data.validation || {};
+            const validationHtml = `
+                <div class="bg-gray-700 p-4 rounded">
+                    <div class="text-gray-300 text-sm">High Confidence</div>
+                    <div class="text-2xl font-bold text-green-400">${val.high_confidence || 0}</div>
+                    <div class="text-xs text-gray-400">≥95%</div>
+                </div>
+                <div class="bg-gray-700 p-4 rounded">
+                    <div class="text-gray-300 text-sm">Medium Confidence</div>
+                    <div class="text-2xl font-bold text-yellow-400">${val.medium_confidence || 0}</div>
+                    <div class="text-xs text-gray-400">80-95%</div>
+                </div>
+                <div class="bg-gray-700 p-4 rounded">
+                    <div class="text-gray-300 text-sm">Low Confidence</div>
+                    <div class="text-2xl font-bold text-red-400">${val.low_confidence || 0}</div>
+                    <div class="text-xs text-gray-400">&lt;80%</div>
+                </div>
+                <div class="bg-gray-700 p-4 rounded">
+                    <div class="text-gray-300 text-sm">Success Rate</div>
+                    <div class="text-2xl font-bold">${((val.high_confidence / val.total_analyzed * 100) || 0).toFixed(0)}%</div>
+                </div>
+            `;
+            document.getElementById('validation').innerHTML = validationHtml;
+            
+            // Grouped
+            const groupedHtml = Object.entries(data.grouped || {}).map(([value, count]) => {
+                return `<span class="bg-blue-700 px-4 py-2 rounded-lg font-semibold">
+                    ${value}: ${count}
+                </span>`;
+            }).join('');
+            document.getElementById('grouped').innerHTML = groupedHtml;
+            
+            // Detailed
+            const detailedHtml = (data.resistors || []).map((r, idx) => {
+                const confPercent = (r.confidence * 100).toFixed(1);
+                const confColor = r.confidence >= 0.95 ? 'green' : r.confidence >= 0.8 ? 'yellow' : 'red';
+                const status = r.confidence >= 0.95 ? '✓ Auto-apply' : r.confidence >= 0.8 ? '⏳ Review' : '❌ Needs review';
+                
+                return `<tr class="hover:bg-gray-700">
+                    <td class="px-4 py-2">${idx + 1}</td>
+                    <td class="px-4 py-2 font-semibold">${r.value}</td>
+                    <td class="px-4 py-2">${r.ohms || 'N/A'}</td>
+                    <td class="px-4 py-2">${r.tolerance || 'N/A'}</td>
+                    <td class="px-4 py-2 text-${confColor}-400 font-semibold">${confPercent}%</td>
+                    <td class="px-4 py-2 text-xs">${JSON.stringify(r.position || {})}</td>
+                    <td class="px-4 py-2 text-sm">${status}</td>
+                </tr>`;
+            }).join('');
+            document.getElementById('detailed-results').innerHTML = detailedHtml;
+            
+            // Raw JSON
+            document.getElementById('raw-json').textContent = JSON.stringify(data, null, 2);
+        }
+    </script>
+</body>
+</html>
