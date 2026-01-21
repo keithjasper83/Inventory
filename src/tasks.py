@@ -179,16 +179,21 @@ def scrape_item_task(item_id: int):
     # For v1, scraping is part of the image processing pipeline
     # This is a placeholder for v2 when we may want separate scraping tasks
     # that can be triggered independently
-    db = next(get_db())
+    db = SessionLocal()
     try:
         item = db.query(Item).filter(Item.id == item_id).first()
         if not item:
-            raise ValueError(f"Item {item_id} not found")
+            logger.warning(f"Item {item_id} not found for scraping.")
+            return
         
         # TODO: Implement standalone scraping logic for v2
         # For now, scraping happens automatically in process_item_image
         # when confidence >= 95%
         pass
+    except Exception as e:
+        logger.error(f"Error in scrape_item_task for item {item_id}: {e}")
+        db.rollback()
+        raise e
     finally:
         db.close()
 

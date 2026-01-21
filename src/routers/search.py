@@ -6,6 +6,9 @@ from src.database import get_db
 from src.models import Item
 from src.dependencies import templates, get_current_user
 from src.ai import ai_client
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -32,7 +35,7 @@ async def search_handler(query: str, request: Request, db: Session, user):
         items = db.query(Item).filter(search_query).params(q=query).all()
     except Exception as e:
         # Fallback for SQLite or error
-        print(f"Search error: {e}")
+        logger.warning(f"Search error (falling back to LIKE): {e}")
         items = db.query(Item).filter(Item.name.ilike(f"%{query}%")).all()
 
     # 3. Jarvis Intent Resolver (if ambiguous/no results - for now just UI indication)

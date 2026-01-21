@@ -1,6 +1,9 @@
 import httpx
 from src.config import settings
 from typing import Optional, Dict, Any, List
+import logging
+
+logger = logging.getLogger(__name__)
 
 class AIClient:
     def __init__(self):
@@ -108,7 +111,7 @@ class AIClient:
                 if resp.status_code == 200:
                     return resp.json()
             except Exception as e:
-                print(f"Error resolving URL intent: {e}")
+                logger.error(f"Error resolving URL intent: {e}")
 
             return {"intent": "unknown", "confidence": 0.0}
 

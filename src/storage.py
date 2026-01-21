@@ -2,6 +2,9 @@ import boto3
 from botocore.exceptions import ClientError
 from src.config import settings
 from src.settings_manager import settings_manager
+import logging
+
+logger = logging.getLogger(__name__)
 
 class StorageService:
     def __init__(self):
@@ -49,7 +52,7 @@ class StorageService:
             )
             return response
         except ClientError as e:
-            print(f"Error generating presigned URL: {e}")
+            logger.error(f"Error generating presigned URL: {e}")
             return None
 
 storage = StorageService()
