@@ -347,7 +347,7 @@ async def counting_plus_test_page(request: Request, user=Depends(require_user)):
     """Test interface for Counting+ feature."""
     return templates.TemplateResponse(
         request=request,
-        name="counting_plus_test.html",
+        name="test_counting_plus.html",
         context={"request": request, "user": user}
     )
 
