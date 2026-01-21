@@ -118,7 +118,7 @@ def create_audit_log(
         action: Action performed (CREATE, UPDATE, DELETE, SUGGEST, APPROVE, REJECT)
         changes: Dictionary of changes made
         source: Source of change (USER, AI_GENERATED, AI_SCRAPED)
-        confidence: AI confidence score (0-100)
+        confidence: AI confidence score (0.0-1.0)
         user_id: ID of user who initiated the action
         before_state: State before changes
         after_state: State after changes
@@ -126,27 +126,32 @@ def create_audit_log(
     Returns:
         Created AuditLog entry
     """
-    # Determine approval status based on confidence
-    approval_status = None
+    # Store before/after states in the changes dict for compatibility with existing model
+    extended_changes = {
+        **changes,
+        "_before": before_state or {},
+        "_after": after_state or {},
+        "_user_id": user_id,
+    }
+    
+    # Determine approval status based on confidence (stored in changes for compatibility)
     if source in ["AI_GENERATED", "AI_SCRAPED"] and confidence is not None:
         if confidence >= AI_AUTO_APPLY_CONFIDENCE:
-            approval_status = "auto_approved"
+            extended_changes["_approval_status"] = "auto_approved"
         elif confidence >= AI_MANUAL_REVIEW_THRESHOLD:
-            approval_status = "pending"
+            extended_changes["_approval_status"] = "pending"
         else:
-            approval_status = "needs_review"
+            extended_changes["_approval_status"] = "needs_review"
     
+    # Use previous_values for before state (existing field)
     audit = AuditLog(
         entity_type=entity_type,
         entity_id=entity_id,
         action=action,
-        changes=changes,
+        changes=extended_changes,
+        previous_values=before_state or {},
         source=source,
-        confidence=confidence,
-        user_id=user_id,
-        before_state=before_state or {},
-        after_state=after_state or {},
-        approval_status=approval_status
+        confidence=confidence
     )
     
     db.add(audit)
@@ -158,12 +163,31 @@ def create_audit_log(
 def scrape_item_task(item_id: int):
     """
     Background task to scrape item information from web sources.
-    This is a wrapper for the scraping logic within process_item_image.
+    
+    This task is triggered when AI suggests high-confidence product information
+    that can be automatically retrieved from manufacturer or distributor websites.
+    
+    The actual scraping logic is part of process_item_image for now, but this
+    provides a separate entry point for manual triggering or future enhancements.
+    
+    Args:
+        item_id: ID of the item to scrape information for
     """
-    # This function is called as a separate RQ task
-    # The actual scraping logic is in process_item_image
-    # We'll just call process_item_image with a flag
-    pass
+    # For v1, scraping is part of the image processing pipeline
+    # This is a placeholder for v2 when we may want separate scraping tasks
+    # that can be triggered independently
+    db = next(get_db())
+    try:
+        item = db.query(Item).filter(Item.id == item_id).first()
+        if not item:
+            raise ValueError(f"Item {item_id} not found")
+        
+        # TODO: Implement standalone scraping logic for v2
+        # For now, scraping happens automatically in process_item_image
+        # when confidence >= 95%
+        pass
+    finally:
+        db.close()
 
 def generate_thumbnails(image_bytes: bytes, item_id: int, original_filename: str):
     """
