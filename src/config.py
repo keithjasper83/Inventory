@@ -32,3 +32,29 @@ class Settings(BaseSettings):
     )
 
 settings = Settings()
+
+def validate_production_config():
+    """
+    Validate that production environment has secure configuration.
+    Raises ValueError if insecure defaults are detected.
+    """
+    errors = []
+    
+    if settings.SECRET_KEY == "supersecretkey":
+        errors.append("SECRET_KEY is using default value - must be changed for production")
+    
+    if "postgres:postgres" in settings.DATABASE_URL and settings.ENVIRONMENT == "production":
+        errors.append("DATABASE_URL contains default credentials - must be changed for production")
+    
+    if settings.S3_ACCESS_KEY == "minioadmin" and settings.ENVIRONMENT == "production":
+        errors.append("S3_ACCESS_KEY is using default value - must be changed for production")
+    
+    if settings.S3_SECRET_KEY == "minioadmin" and settings.ENVIRONMENT == "production":
+        errors.append("S3_SECRET_KEY is using default value - must be changed for production")
+    
+    if errors:
+        raise ValueError(
+            f"Production configuration validation failed:\n" + 
+            "\n".join(f"  - {error}" for error in errors)
+        )
+

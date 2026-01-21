@@ -11,6 +11,9 @@ import io
 from PIL import Image
 from rq import get_current_job
 from functools import wraps
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Constants for retry and AI validation
 MAX_RETRIES = 3
@@ -224,7 +227,7 @@ def generate_thumbnails(image_bytes: bytes, item_id: int, original_filename: str
 
         return derived
     except Exception as e:
-        print(f"Error generating thumbnails: {e}")
+        logger.error(f"Error generating thumbnails: {e}")
         return {}
 
 def process_item_image(item_id: int, media_id: int):
@@ -243,7 +246,7 @@ def process_item_image(item_id: int, media_id: int):
         media = db.query(Media).filter(Media.id == media_id).first()
 
         if not item or not media:
-            print(f"Item {item_id} or Media {media_id} not found.")
+            logger.warning(f"Item {item_id} or Media {media_id} not found.")
             return
 
         # 1. Download Image
@@ -253,7 +256,7 @@ def process_item_image(item_id: int, media_id: int):
             file_stream.seek(0)
             image_bytes = file_stream.read()
         except Exception as e:
-            print(f"Error downloading image: {e}")
+            logger.error(f"Error downloading image: {e}")
             raise e
 
         # 2. Generate Thumbnails
@@ -379,7 +382,7 @@ def process_item_image(item_id: int, media_id: int):
                             db.add(media_entry)
                             downloaded_docs.append(key)
                     except Exception as e:
-                        print(f"Error downloading {doc_url}: {e}")
+                        logger.error(f"Error downloading {doc_url}: {e}")
 
                 if scrape_result.get('pdf_snapshot'):
                     save_doc(scrape_result['pdf_snapshot'], "snapshot")
@@ -401,7 +404,7 @@ def process_item_image(item_id: int, media_id: int):
                 db.commit()
 
     except Exception as e:
-        print(f"Error processing item image: {e}")
+        logger.error(f"Error processing item image: {e}")
         db.rollback()
         raise e
     finally:
