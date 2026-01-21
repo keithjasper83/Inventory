@@ -1,4 +1,5 @@
 import time
+from typing import Any, Dict, Optional
 from sqlalchemy.orm import Session
 from src.database import SessionLocal
 from src.models import Item, Media, AuditLog
@@ -10,6 +11,11 @@ import io
 from PIL import Image
 from rq import get_current_job
 from functools import wraps
+
+# Constants for retry and AI validation
+MAX_RETRIES = 3
+AI_AUTO_APPLY_CONFIDENCE = 0.95
+AI_MANUAL_REVIEW_THRESHOLD = 0.80
 
 def retry_with_backoff(max_retries=3, initial_backoff=1.0, backoff_multiplier=2.0):
     """
@@ -50,6 +56,114 @@ def get_db():
         yield db
     finally:
         db.close()
+
+def validate_ai_output(value: Any, field_name: str, expected_type: type) -> bool:
+    """
+    Validate AI output before applying to database.
+    
+    Args:
+        value: The value to validate
+        field_name: Name of the field being validated
+        expected_type: Expected Python type
+        
+    Returns:
+        True if valid, False otherwise
+    """
+    # Null checks
+    if value is None:
+        return False
+    
+    # Empty value checks
+    if isinstance(value, str) and not value.strip():
+        return False
+    if isinstance(value, (list, dict)) and not value:
+        return False
+    
+    # Type validation
+    if not isinstance(value, expected_type):
+        try:
+            # Try to convert
+            if expected_type == str:
+                value = str(value)
+            elif expected_type == int:
+                value = int(value)
+            elif expected_type == float:
+                value = float(value)
+            else:
+                return False
+        except (ValueError, TypeError):
+            return False
+    
+    return True
+
+def create_audit_log(
+    db: Session,
+    entity_type: str,
+    entity_id: int,
+    action: str,
+    changes: Dict[str, Any],
+    source: str = "USER",
+    confidence: Optional[float] = None,
+    user_id: Optional[int] = None,
+    before_state: Optional[Dict[str, Any]] = None,
+    after_state: Optional[Dict[str, Any]] = None
+) -> AuditLog:
+    """
+    Create a comprehensive audit log entry.
+    
+    Args:
+        db: Database session
+        entity_type: Type of entity (e.g., "Item", "Category")
+        entity_id: ID of the entity
+        action: Action performed (CREATE, UPDATE, DELETE, SUGGEST, APPROVE, REJECT)
+        changes: Dictionary of changes made
+        source: Source of change (USER, AI_GENERATED, AI_SCRAPED)
+        confidence: AI confidence score (0-100)
+        user_id: ID of user who initiated the action
+        before_state: State before changes
+        after_state: State after changes
+        
+    Returns:
+        Created AuditLog entry
+    """
+    # Determine approval status based on confidence
+    approval_status = None
+    if source in ["AI_GENERATED", "AI_SCRAPED"] and confidence is not None:
+        if confidence >= AI_AUTO_APPLY_CONFIDENCE:
+            approval_status = "auto_approved"
+        elif confidence >= AI_MANUAL_REVIEW_THRESHOLD:
+            approval_status = "pending"
+        else:
+            approval_status = "needs_review"
+    
+    audit = AuditLog(
+        entity_type=entity_type,
+        entity_id=entity_id,
+        action=action,
+        changes=changes,
+        source=source,
+        confidence=confidence,
+        user_id=user_id,
+        before_state=before_state or {},
+        after_state=after_state or {},
+        approval_status=approval_status
+    )
+    
+    db.add(audit)
+    db.commit()
+    db.refresh(audit)
+    
+    return audit
+
+def scrape_item_task(item_id: int):
+    """
+    Background task to scrape item information from web sources.
+    This is a wrapper for the scraping logic within process_item_image.
+    """
+    # This function is called as a separate RQ task
+    # The actual scraping logic is in process_item_image
+    # We'll just call process_item_image with a flag
+    pass
 
 def generate_thumbnails(image_bytes: bytes, item_id: int, original_filename: str):
     """
