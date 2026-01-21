@@ -1,4 +1,5 @@
 import time
+from typing import Any, Dict, Optional
 from sqlalchemy.orm import Session
 from src.database import SessionLocal
 from src.models import Item, Media, AuditLog
@@ -10,6 +11,11 @@ import io
 from PIL import Image
 from rq import get_current_job
 from functools import wraps
+
+# Constants for retry and AI validation
+MAX_RETRIES = 3
+AI_AUTO_APPLY_CONFIDENCE = 0.95
+AI_MANUAL_REVIEW_THRESHOLD = 0.80
 
 def retry_with_backoff(max_retries=3, initial_backoff=1.0, backoff_multiplier=2.0):
     """
@@ -48,6 +54,138 @@ def get_db():
     db = SessionLocal()
     try:
         yield db
+    finally:
+        db.close()
+
+def validate_ai_output(value: Any, field_name: str, expected_type: type) -> bool:
+    """
+    Validate AI output before applying to database.
+    
+    Args:
+        value: The value to validate
+        field_name: Name of the field being validated
+        expected_type: Expected Python type
+        
+    Returns:
+        True if valid, False otherwise
+    """
+    # Null checks
+    if value is None:
+        return False
+    
+    # Empty value checks
+    if isinstance(value, str) and not value.strip():
+        return False
+    if isinstance(value, (list, dict)) and not value:
+        return False
+    
+    # Type validation
+    if not isinstance(value, expected_type):
+        try:
+            # Try to convert
+            if expected_type == str:
+                value = str(value)
+            elif expected_type == int:
+                value = int(value)
+            elif expected_type == float:
+                value = float(value)
+            else:
+                return False
+        except (ValueError, TypeError):
+            return False
+    
+    return True
+
+def create_audit_log(
+    db: Session,
+    entity_type: str,
+    entity_id: int,
+    action: str,
+    changes: Dict[str, Any],
+    source: str = "USER",
+    confidence: Optional[float] = None,
+    user_id: Optional[int] = None,
+    before_state: Optional[Dict[str, Any]] = None,
+    after_state: Optional[Dict[str, Any]] = None
+) -> AuditLog:
+    """
+    Create a comprehensive audit log entry.
+    
+    Args:
+        db: Database session
+        entity_type: Type of entity (e.g., "Item", "Category")
+        entity_id: ID of the entity
+        action: Action performed (CREATE, UPDATE, DELETE, SUGGEST, APPROVE, REJECT)
+        changes: Dictionary of changes made
+        source: Source of change (USER, AI_GENERATED, AI_SCRAPED)
+        confidence: AI confidence score (0.0-1.0)
+        user_id: ID of user who initiated the action
+        before_state: State before changes
+        after_state: State after changes
+        
+    Returns:
+        Created AuditLog entry
+    """
+    # Store before/after states in the changes dict for compatibility with existing model
+    extended_changes = {
+        **changes,
+        "_before": before_state or {},
+        "_after": after_state or {},
+        "_user_id": user_id,
+    }
+    
+    # Determine approval status based on confidence (stored in changes for compatibility)
+    if source in ["AI_GENERATED", "AI_SCRAPED"] and confidence is not None:
+        if confidence >= AI_AUTO_APPLY_CONFIDENCE:
+            extended_changes["_approval_status"] = "auto_approved"
+        elif confidence >= AI_MANUAL_REVIEW_THRESHOLD:
+            extended_changes["_approval_status"] = "pending"
+        else:
+            extended_changes["_approval_status"] = "needs_review"
+    
+    # Use previous_values for before state (existing field)
+    audit = AuditLog(
+        entity_type=entity_type,
+        entity_id=entity_id,
+        action=action,
+        changes=extended_changes,
+        previous_values=before_state or {},
+        source=source,
+        confidence=confidence
+    )
+    
+    db.add(audit)
+    db.commit()
+    db.refresh(audit)
+    
+    return audit
+
+def scrape_item_task(item_id: int):
+    """
+    Background task to scrape item information from web sources.
+    
+    This task is triggered when AI suggests high-confidence product information
+    that can be automatically retrieved from manufacturer or distributor websites.
+    
+    The actual scraping logic is part of process_item_image for now, but this
+    provides a separate entry point for manual triggering or future enhancements.
+    
+    Args:
+        item_id: ID of the item to scrape information for
+    """
+    # For v1, scraping is part of the image processing pipeline
+    # This is a placeholder for v2 when we may want separate scraping tasks
+    # that can be triggered independently
+    db = next(get_db())
+    try:
+        item = db.query(Item).filter(Item.id == item_id).first()
+        if not item:
+            raise ValueError(f"Item {item_id} not found")
+        
+        # TODO: Implement standalone scraping logic for v2
+        # For now, scraping happens automatically in process_item_image
+        # when confidence >= 95%
+        pass
     finally:
         db.close()
 
