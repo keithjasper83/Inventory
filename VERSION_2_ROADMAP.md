@@ -21,22 +21,17 @@ Version 2.0 focuses on **practical quality-of-life improvements** and **intellig
 
 ## Feature Roadmap
 
-### 🎯 Phase 1: Bulk Operations & Counting (Q2 2026)
+### 🎯 Phase 1: Extended Bulk Operations (Q2 2026)
 
-#### Counting+ (High Priority)
-- **Bulk Resistor Recognition**
-  - Take photo of many resistors laid out (straight lines, no overlap/crossing)
-  - AI identifies and counts each resistor by color bands
-  - Groups by resistance value (e.g., "47x 10kΩ, 23x 100Ω, 5x 1MΩ")
-  - Flags resistors that couldn't be identified (calibration issues, unclear bands)
-  - Batch add to inventory with one confirmation
-  - **Use Case**: Received a bag of mixed resistors, count and catalog in seconds
+**Note**: Resistor bulk counting (Counting+) is implemented in v1.0. Phase 1 extends this to other components.
 
-- **Bulk Component Recognition**
-  - Extend counting to other components (capacitors, ICs, etc.)
-  - Recognize text markings on chips
-  - Count similar-looking parts
-  - Handle partial views and overlapping components (future)
+#### Extended Counting+ (Other Components)
+- **Bulk Component Recognition Beyond Resistors**
+  - Extend counting to capacitors (read capacitance markings)
+  - IC identification from text markings and etching
+  - Count similar-looking parts (SMD components, LEDs, etc.)
+  - Handle partial views and overlapping components
+  - **Use Case**: Process mixed component bags like you already can with resistors
 
 #### Batch Import/Export
 - **Spreadsheet Integration**
@@ -168,12 +163,13 @@ Version 2.0 focuses on **practical quality-of-life improvements** and **intellig
 ### 🎯 Phase 5: Advanced AI Features (Q2 2027)
 
 #### Advanced Component Recognition
-- **IC Marking Recognition**
-  - Read tiny text on integrated circuits
+- **IC Marking Recognition** (from v1.0 Counting+)
+  - Read tiny text/etching on integrated circuits
   - Match to datasheets automatically
   - Identify counterfeit or remarked chips
   - Extract date codes and batch numbers
-  - **Use Case**: Identify mystery ICs from salvaged boards
+  - Bulk counting of ICs (extending resistor counting capability)
+  - **Use Case**: Identify mystery ICs from salvaged boards, count bulk IC orders
 
 - **PCB Component Mapping**
   - Scan populated PCB, identify all components

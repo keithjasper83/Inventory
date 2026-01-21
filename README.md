@@ -15,6 +15,7 @@ A local-first, AI-assisted workshop inventory system designed for fast photo cap
 
 ## Highlights
 - Photo-first item capture (mobile-first)
+- **Counting+** bulk resistor recognition and counting from photos
 - PostgreSQL Full-Text Search from v1
 - Human-readable URLs + catch-all resolver
 - AI-assisted OCR, duplicate detection, resistor colour-code decoding

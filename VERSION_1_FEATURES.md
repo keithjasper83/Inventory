@@ -91,11 +91,21 @@ This document provides the definitive feature list for Version 1.0 of the Jules 
 - **Multiple Languages** - PaddleOCR supports various languages
 - **Background Processing** - Never blocks user interaction
 
-### ✅ Resistor Identification
-- **Color Band Reading** - Identify resistor value from photo
+### ✅ Resistor Identification & Counting
+- **Single Resistor Recognition** - Identify individual resistor value from photo
 - **Value Calculation** - Compute resistance, tolerance, temp coefficient
 - **Confidence-Based** - High confidence → auto-apply
 - **Manual Override** - User can correct if wrong
+
+### ✅ Counting+ (Bulk Resistor Processing)
+- **Bulk Resistor Recognition** - Take photo of many resistors laid out in rows
+- **Automatic Counting** - AI identifies and counts each resistor by color bands
+- **Value Grouping** - Groups by resistance value (e.g., "47x 10kΩ, 23x 100Ω")
+- **Quality Control** - Flags resistors that couldn't be identified
+- **Batch Addition** - Add all counted resistors to inventory with one confirmation
+- **Calibration Mode** - Handle unclear bands or difficult lighting
+- **Requirements**: Resistors arranged in straight lines, minimal overlap, good lighting
+- **Use Case**: Process bulk resistor orders in seconds instead of 30+ minutes
 
 ### ✅ Duplicate Detection
 - **Image Embeddings** - OpenCLIP generates image vectors
@@ -320,39 +330,10 @@ These are design decisions, not bugs:
 2. **SQLite Mode** - Limited FTS capability (PostgreSQL recommended)
 3. **Single Admin** - Only one admin account seeded by default
 4. **No SSO** - Username/password only (not needed for personal workshop)
-5. **Single Resistor Recognition** - Identifies one resistor at a time (bulk counting in v2)
+5. **Resistors Only for Counting+** - Bulk counting implemented for resistors only in v1.0
+   - Other components (ICs, capacitors, etc.) will be added in v2.0
 6. **English Only** - UI and docs in English (not a priority for single-user)
 7. **Single Organization** - No multi-tenancy (not needed for personal workshop)
-
----
-
-## Potential v1.1 Features (Under Consideration)
-
-### Counting+ 🎯 High Priority
-A highly requested feature for bulk component cataloging:
-
-**What It Does**:
-- Take a photo of many resistors laid out in rows (no overlap/crossing)
-- AI counts and identifies each resistor by color bands
-- Groups by value (e.g., "47x 10kΩ, 23x 100Ω, 5x 1MΩ")
-- Flags resistors that couldn't be identified
-- Batch add to inventory with one confirmation
-
-**Benefits**:
-- Count hundreds of resistors in seconds instead of 30+ minutes
-- Perfect for processing bulk orders
-- Dramatically reduces tedious data entry
-- Calibration mode to handle unclear bands
-
-**Requirements**:
-- Components arranged in straight lines
-- Minimal overlap or crossing
-- Good lighting and focus
-- Clear color bands
-
-**Status**: Evaluating for v1.1 or v2.0 Phase 1  
-**Decision**: After beta testing feedback  
-**Vote**: Highly requested by workshop users
 
 ---
 
