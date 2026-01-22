@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import List, Optional
 import os
-from sqlalchemy import String, Integer, Boolean, ForeignKey, DateTime, Text, Index, Computed, JSON
+from sqlalchemy import String, Integer, Boolean, ForeignKey, DateTime, Text, Index, Computed, JSON, Float
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 from src.database import Base
@@ -128,7 +128,7 @@ class AuditLog(Base):
     changes: Mapped[dict] = mapped_column(JSON)
     previous_values: Mapped[dict] = mapped_column(JSON, server_default='{}')
     is_undone: Mapped[bool] = mapped_column(Boolean, default=False)
-    confidence: Mapped[Optional[float]] = mapped_column(Integer, nullable=True)
+    confidence: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     source: Mapped[str] = mapped_column(String) # USER, AI_GENERATED, AI_SCRAPED
     timestamp: Mapped[datetime] = mapped_column(server_default=func.now())
     user_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
