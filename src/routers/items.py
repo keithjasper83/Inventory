@@ -6,6 +6,7 @@ from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
 import uuid
+import logging
 
 import redis
 from rq import Queue
@@ -16,6 +17,8 @@ from src.storage import storage
 from src.ai import ai_client
 from src.tasks import process_item_image
 from src.config import settings
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -29,7 +32,7 @@ try:
         redis_conn.ping() # Check connection
 except:
     import fakeredis
-    print("Warning: Redis not available, using FakeRedis")
+    logger.warning("Redis not available, using FakeRedis")
     redis_conn = fakeredis.FakeRedis()
 
 q = Queue(connection=redis_conn)

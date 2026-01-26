@@ -2,6 +2,9 @@ import os
 import redis
 from rq import Worker, Queue, Connection
 from src.config import settings
+import logging
+
+logger = logging.getLogger(__name__)
 
 listen = ['default']
 
@@ -14,5 +17,5 @@ def start_worker():
         worker.work()
 
 if __name__ == '__main__':
-    print("Starting RQ Worker...")
+    logger.info("Starting RQ Worker...")
     start_worker()

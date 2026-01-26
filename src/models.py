@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import List, Optional
 import os
-from sqlalchemy import String, Integer, Boolean, ForeignKey, DateTime, Text, Index, Computed, JSON
+from sqlalchemy import String, Integer, Boolean, ForeignKey, DateTime, Text, Index, Computed, JSON, Float
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 from src.database import Base
@@ -28,7 +28,22 @@ class User(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     username: Mapped[str] = mapped_column(String, unique=True, index=True)
     password_hash: Mapped[str] = mapped_column(String)
+    role: Mapped[str] = mapped_column(String, server_default='user')
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    
+    def has_role(self, required_role: str) -> bool:
+        """
+        Check if user has the required role or higher.
+        Hierarchy: admin > reviewer > user
+        """
+        role_hierarchy = {
+            'user': 1,
+            'reviewer': 2,
+            'admin': 3
+        }
+        user_level = role_hierarchy.get(self.role, 0)
+        required_level = role_hierarchy.get(required_role, 0)
+        return user_level >= required_level
 
 class Location(Base):
     __tablename__ = "locations"
@@ -113,9 +128,14 @@ class AuditLog(Base):
     changes: Mapped[dict] = mapped_column(JSON)
     previous_values: Mapped[dict] = mapped_column(JSON, server_default='{}')
     is_undone: Mapped[bool] = mapped_column(Boolean, default=False)
-    confidence: Mapped[Optional[float]] = mapped_column(Integer, nullable=True)
+    confidence: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     source: Mapped[str] = mapped_column(String) # USER, AI_GENERATED, AI_SCRAPED
     timestamp: Mapped[datetime] = mapped_column(server_default=func.now())
+    user_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    approval_status: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    reviewed_by: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    reviewed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
 class SystemSetting(Base):
     __tablename__ = "system_settings"

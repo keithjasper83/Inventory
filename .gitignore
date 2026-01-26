@@ -39,8 +39,11 @@ htmlcov/
 .tox/
 test.db
 
-# Environment
+# Environment - exclude all .env files except examples
 .env
+.env.*
+!.env.example
+!.env.production.example
 config/ai_host.env
 
 # Database

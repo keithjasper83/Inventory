@@ -4,11 +4,21 @@ from fastapi.middleware.gzip import GZipMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
+import os
 
-from src.config import settings
+from src.config import settings, validate_production_config
 from src.dependencies import templates, get_current_user
 from src.routers import auth, items, search, locations, categories, admin, health, counting
 from src.ai import ai_client
+
+# Validate production configuration on startup
+if os.environ.get("ENVIRONMENT") == "production" or settings.ENVIRONMENT == "production":
+    try:
+        validate_production_config()
+    except ValueError as e:
+        import sys
+        print(f"FATAL: Production configuration validation failed:\n{e}", file=sys.stderr)
+        sys.exit(1)
 
 app = FastAPI(title=settings.APP_NAME)
 
