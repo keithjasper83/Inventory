@@ -3,7 +3,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, Request, Form, UploadFile, File, HTTPException, status
 from fastapi.responses import RedirectResponse, HTMLResponse
 from fastapi.concurrency import run_in_threadpool
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import or_
 import uuid
 import logging
@@ -126,7 +126,7 @@ async def create_item(
 
 @router.get("/i/{slug}", response_class=HTMLResponse)
 async def view_item_slug(slug: str, request: Request, db: Session = Depends(get_db), user=Depends(get_current_user)):
-    item = db.query(Item).filter(Item.slug == slug).first()
+    item = db.query(Item).options(joinedload(Item.category)).filter(Item.slug == slug).first()
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
 
@@ -152,7 +152,7 @@ async def view_item_slug(slug: str, request: Request, db: Session = Depends(get_
 
 @router.get("/p/{id}", response_class=HTMLResponse)
 async def view_item_id(id: int, request: Request, db: Session = Depends(get_db), user=Depends(get_current_user)):
-    item = db.query(Item).filter(Item.id == id).first()
+    item = db.query(Item).options(joinedload(Item.category)).filter(Item.id == id).first()
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
 
