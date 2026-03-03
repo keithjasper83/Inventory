@@ -16,9 +16,7 @@ router = APIRouter()
 async def admin_dashboard(request: Request, db: Session = Depends(get_db), user=Depends(require_user)):
     # 1. Fetch Settings
     # We want to show all defaults + overrides
-    current_settings = {}
-    for key, default_val in settings_manager._defaults.items():
-        current_settings[key] = settings_manager.get(key)
+    current_settings = settings_manager.get_all()
 
     # 2. Fetch Stats
     stats = {}

@@ -34,4 +34,19 @@ class SettingsManager:
         finally:
             db.close()
 
+    def get_all(self):
+        db = SessionLocal()
+        try:
+            # Start with a copy of defaults
+            settings = self._defaults.copy()
+
+            # Fetch all overrides from DB that exist in defaults
+            overrides = db.query(SystemSetting).filter(SystemSetting.key.in_(self._defaults.keys())).all()
+            for setting in overrides:
+                settings[setting.key] = setting.value
+
+            return settings
+        finally:
+            db.close()
+
 settings_manager = SettingsManager()
