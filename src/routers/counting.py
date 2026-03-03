@@ -170,24 +170,25 @@ async def batch_create_resistors(
     # Create items grouped by value
     for value, resistor_list in grouped_by_value.items():
         if value == "unknown":
-            # Create individual items for unknown resistors
-            for resistor in resistor_list:
-                try:
-                    item = _create_resistor_item(
-                        db, 
-                        location_id, 
-                        category_id, 
-                        resistor, 
-                        temp_image_key,
-                        user.id if hasattr(user, 'id') else None
-                    )
+            # Create individual items for unknown resistors in bulk
+            try:
+                items_created = _bulk_create_resistor_items(
+                    db,
+                    location_id,
+                    category_id,
+                    resistor_list,
+                    temp_image_key,
+                    user.id if hasattr(user, 'id') else None
+                )
+                for item, resistor in zip(items_created, resistor_list):
                     created_items.append({
                         "id": item.id,
                         "name": item.name,
                         "value": value,
                         "confidence": resistor.get("confidence", 0)
                     })
-                except Exception as e:
+            except Exception as e:
+                for resistor in resistor_list:
                     failed_items.append({
                         "value": value,
                         "error": str(e)
@@ -235,6 +236,124 @@ async def batch_create_resistors(
         "failed_items": failed_items
     })
 
+
+def _bulk_create_resistor_items(
+    db: Session,
+    location_id: int,
+    category_id: Optional[int],
+    resistors: List[Dict[str, Any]],
+    temp_image_key: Optional[str],
+    user_id: Optional[int]
+) -> List[Item]:
+    """
+    Bulk create items from a list of resistor data.
+    """
+    items = []
+    item_infos = []
+
+    for resistor in resistors:
+        value = resistor.get("value", "unknown")
+        ohms = resistor.get("ohms")
+        tolerance = resistor.get("tolerance")
+        confidence = resistor.get("confidence", 0)
+
+        if value != "unknown" and ohms:
+            if ohms >= 1_000_000:
+                formatted_value = f"{ohms / 1_000_000:.1f}MΩ"
+            elif ohms >= 1_000:
+                formatted_value = f"{ohms / 1_000:.1f}kΩ"
+            else:
+                formatted_value = f"{ohms}Ω"
+
+            name = f"Resistor {formatted_value}"
+            if tolerance:
+                name += f" {tolerance}"
+        else:
+            name = f"Unknown Resistor (Confidence: {confidence*100:.0f}%)"
+
+        base_slug = name.lower().replace(" ", "-").replace("ω", "ohm")
+        slug = f"{base_slug}-{uuid.uuid4().hex[:6]}"
+
+        item_data = {
+            "resistance_ohms": ohms,
+            "tolerance": tolerance,
+            "ai_confidence": confidence,
+            "source": "counting_plus",
+            "value_display": value
+        }
+
+        source = "AI_SCRAPED" if confidence >= 0.95 else "AI_GENERATED"
+        is_draft = confidence < 0.8
+
+        item = Item(
+            name=name,
+            slug=slug,
+            category_id=category_id,
+            is_draft=is_draft,
+            data=item_data
+        )
+        items.append(item)
+        item_infos.append({
+            "name": name,
+            "confidence": confidence,
+            "source": source,
+            "item_data": item_data
+        })
+
+    db.add_all(items)
+    db.flush()
+
+    stocks = []
+    audits = []
+
+    for i, item in enumerate(items):
+        info = item_infos[i]
+
+        if temp_image_key:
+            try:
+                pass
+            except:
+                pass
+
+        stock = Stock(
+            item_id=item.id,
+            location_id=location_id,
+            quantity=1
+        )
+        stocks.append(stock)
+
+        extended_changes = {
+            "name": info["name"],
+            "quantity": 1,
+            "method": "counting_plus",
+            "_before": {},
+            "_after": info["item_data"],
+            "_user_id": user_id,
+        }
+
+        if info["source"] in ["AI_GENERATED", "AI_SCRAPED"] and info["confidence"] is not None:
+            if info["confidence"] >= 0.95: # AI_AUTO_APPLY_CONFIDENCE
+                extended_changes["_approval_status"] = "auto_approved"
+            elif info["confidence"] >= 0.80: # AI_MANUAL_REVIEW_THRESHOLD
+                extended_changes["_approval_status"] = "pending"
+            else:
+                extended_changes["_approval_status"] = "needs_review"
+
+        audit = AuditLog(
+            entity_type="Item",
+            entity_id=item.id,
+            action="CREATE",
+            changes=extended_changes,
+            previous_values={},
+            source=info["source"],
+            confidence=info["confidence"]
+        )
+        audits.append(audit)
+
+    db.add_all(stocks)
+    db.add_all(audits)
+
+    return items
 
 def _create_resistor_item(
     db: Session,
