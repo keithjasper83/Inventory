@@ -176,9 +176,6 @@ def scrape_item_task(item_id: int):
     Args:
         item_id: ID of the item to scrape information for
     """
-    # For v1, scraping is part of the image processing pipeline
-    # This is a placeholder for v2 when we may want separate scraping tasks
-    # that can be triggered independently
     db = SessionLocal()
     try:
         item = db.query(Item).filter(Item.id == item_id).first()
@@ -186,10 +183,76 @@ def scrape_item_task(item_id: int):
             logger.warning(f"Item {item_id} not found for scraping.")
             return
         
-        # TODO: Implement standalone scraping logic for v2
-        # For now, scraping happens automatically in process_item_image
-        # when confidence >= 95%
-        pass
+        # Determine search query: prefer ocr_text if available, else name
+        search_query = None
+        pending = item.pending_changes or {}
+        if pending.get('ocr_text') and pending['ocr_text'] != "pending":
+            search_query = pending['ocr_text']
+        elif item.name:
+            search_query = item.name
+
+        if not search_query:
+            logger.warning(f"Item {item_id} has no suitable search query (name or ocr_text) for scraping.")
+            return
+
+        async def run_scrape():
+            url = await ai_client.find_product_url(search_query)
+            if url:
+                scrape_result = await ai_client.scrape_url(url)
+                return url, scrape_result
+            return None, None
+
+        url, scrape_result = asyncio.run(run_scrape())
+
+        if scrape_result:
+            # Save scraped URL
+            updated_pending = dict(item.pending_changes or {})
+            updated_pending['source_url'] = url
+
+            import requests
+            downloaded_docs = []
+
+            # Helper to download and save
+            def save_doc(doc_url, prefix="doc"):
+                try:
+                    timeout = settings_manager.get("scrape_timeout", 30)
+                    resp = requests.get(doc_url, timeout=timeout)
+                    if resp.status_code == 200:
+                        import uuid
+                        key = f"items/{item.id}/docs/{prefix}-{uuid.uuid4()}.pdf"
+                        storage.upload_file(io.BytesIO(resp.content), key, "application/pdf", bucket_type="docs")
+
+                        media_entry = Media(
+                            item_id=item.id,
+                            type="pdf",
+                            s3_key=key,
+                            metadata_json={"source_url": doc_url}
+                        )
+                        db.add(media_entry)
+                        downloaded_docs.append(key)
+                except Exception as e:
+                    logger.error(f"Error downloading {doc_url}: {e}")
+
+            if scrape_result.get('pdf_snapshot'):
+                save_doc(scrape_result['pdf_snapshot'], "snapshot")
+
+            for sheet in scrape_result.get('datasheets', []):
+                save_doc(sheet, "datasheet")
+
+            item.pending_changes = updated_pending
+
+            audit = AuditLog(
+                entity_type="Item",
+                entity_id=item.id,
+                action="SUGGEST",
+                changes={"scraped_url": url, "docs": len(downloaded_docs)},
+                source="AI_SCRAPED",
+                confidence=100
+            )
+            db.add(audit)
+            db.commit()
+            logger.info(f"Successfully scraped item {item_id} from {url}")
+
     except Exception as e:
         logger.error(f"Error in scrape_item_task for item {item_id}: {e}")
         db.rollback()
