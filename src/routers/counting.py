@@ -170,28 +170,49 @@ async def batch_create_resistors(
     # Create items grouped by value
     for value, resistor_list in grouped_by_value.items():
         if value == "unknown":
-            # Create individual items for unknown resistors
-            for resistor in resistor_list:
-                try:
-                    item = _create_resistor_item(
-                        db, 
-                        location_id, 
-                        category_id, 
-                        resistor, 
+            try:
+                # we don't commit until the end so if something fails, the entire request fails OR we can use nested transactions
+                with db.begin_nested():
+                    items = _create_resistor_items_bulk(
+                        db,
+                        location_id,
+                        category_id,
+                        resistor_list,
                         temp_image_key,
                         user.id if hasattr(user, 'id') else None
                     )
-                    created_items.append({
-                        "id": item.id,
-                        "name": item.name,
-                        "value": value,
-                        "confidence": resistor.get("confidence", 0)
-                    })
-                except Exception as e:
-                    failed_items.append({
-                        "value": value,
-                        "error": str(e)
-                    })
+                    for item, resistor in zip(items, resistor_list):
+                        created_items.append({
+                            "id": item.id,
+                            "name": item.name,
+                            "value": value,
+                            "confidence": resistor.get("confidence", 0)
+                        })
+            except Exception as e:
+                # Fallback to individual
+                for resistor in resistor_list:
+                    try:
+                        with db.begin_nested():
+                            # we call the bulk with one item, but do not commit individually
+                            item = _create_resistor_items_bulk(
+                                db,
+                                location_id,
+                                category_id,
+                                [resistor],
+                                temp_image_key,
+                                user.id if hasattr(user, 'id') else None
+                            )[0]
+                            created_items.append({
+                                "id": item.id,
+                                "name": item.name,
+                                "value": value,
+                                "confidence": resistor.get("confidence", 0)
+                            })
+                    except Exception as inner_e:
+                        failed_items.append({
+                            "value": value,
+                            "error": str(inner_e)
+                        })
         else:
             # Create single item with quantity = count
             try:
@@ -236,6 +257,153 @@ async def batch_create_resistors(
     })
 
 
+
+def _create_resistor_items_bulk(
+    db: Session,
+    location_id: int,
+    category_id: Optional[int],
+    resistors: List[Dict[str, Any]],
+    temp_image_key: Optional[str],
+    user_id: Optional[int],
+    quantities: Optional[List[int]] = None
+) -> List[Item]:
+    """
+    Create multiple items from resistor data in bulk.
+    """
+    from src.tasks import AI_AUTO_APPLY_CONFIDENCE, AI_MANUAL_REVIEW_THRESHOLD
+
+    if not resistors:
+        return []
+
+    if quantities is None:
+        quantities = [1] * len(resistors)
+
+    items = []
+    item_metadata = []
+    
+    for resistor, quantity in zip(resistors, quantities):
+        value = resistor.get("value", "unknown")
+        ohms = resistor.get("ohms")
+        tolerance = resistor.get("tolerance")
+        confidence = resistor.get("confidence", 0)
+
+        # Generate name
+        if value != "unknown" and ohms:
+            # Format resistance value
+            if ohms >= 1_000_000:
+                formatted_value = f"{ohms / 1_000_000:.1f}MΩ"
+            elif ohms >= 1_000:
+                formatted_value = f"{ohms / 1_000:.1f}kΩ"
+            else:
+                formatted_value = f"{ohms}Ω"
+
+            name = f"Resistor {formatted_value}"
+            if tolerance:
+                name += f" {tolerance}"
+        else:
+            name = f"Unknown Resistor (Confidence: {confidence*100:.0f}%)"
+        
+        # Generate slug
+        base_slug = name.lower().replace(" ", "-").replace("ω", "ohm")
+        slug = f"{base_slug}-{uuid.uuid4().hex[:6]}"
+
+        # Item data
+        item_data = {
+            "resistance_ohms": ohms,
+            "tolerance": tolerance,
+            "ai_confidence": confidence,
+            "source": "counting_plus",
+            "value_display": value
+        }
+
+        # Determine if this should be considered AI-scraped or needs review
+        source = "AI_SCRAPED" if confidence >= 0.95 else "AI_GENERATED"
+        is_draft = confidence < 0.8  # Draft if low confidence
+
+        # Create item
+        item = Item(
+            name=name,
+            slug=slug,
+            category_id=category_id,
+            is_draft=is_draft,
+            data=item_data
+        )
+        items.append(item)
+        item_metadata.append({
+            "name": name,
+            "quantity": quantity,
+            "source": source,
+            "confidence": confidence,
+            "item_data": item_data,
+            "resistor": resistor
+        })
+    
+    db.add_all(items)
+    db.flush()  # Get IDs for all items at once
+    
+    stocks = []
+    audit_logs = []
+    
+    for item, meta in zip(items, item_metadata):
+        # Copy image from temp if available
+        if temp_image_key:
+            try:
+                # Copy temp image to permanent location
+                new_key = f"items/{item.id}/counting-plus-{uuid.uuid4()}.jpg"
+                # Note: This would need storage.copy_file implementation
+                # For now, we'll skip copying to avoid complexity
+                # In production, implement: storage.copy_file(temp_image_key, new_key)
+                pass
+            except:
+                pass
+
+        # Create stock entry
+        stock = Stock(
+            item_id=item.id,
+            location_id=location_id,
+            quantity=meta["quantity"]
+        )
+        stocks.append(stock)
+
+        # We manually build the audit log dict to avoid db.commit() which happens inside create_audit_log
+        changes = {"name": meta["name"], "quantity": meta["quantity"], "method": "counting_plus"}
+        extended_changes = {
+            **changes,
+            "_before": {},
+            "_after": meta["item_data"],
+            "_user_id": user_id,
+        }
+
+        source = meta["source"]
+        confidence = meta["confidence"]
+
+        if source in ["AI_GENERATED", "AI_SCRAPED"] and confidence is not None:
+            if confidence >= AI_AUTO_APPLY_CONFIDENCE:
+                extended_changes["_approval_status"] = "auto_approved"
+            elif confidence >= AI_MANUAL_REVIEW_THRESHOLD:
+                extended_changes["_approval_status"] = "pending"
+            else:
+                extended_changes["_approval_status"] = "needs_review"
+
+        audit = AuditLog(
+            entity_type="Item",
+            entity_id=item.id,
+            action="CREATE",
+            changes=extended_changes,
+            previous_values={},
+            source=source,
+            confidence=confidence,
+            user_id=user_id,
+            approval_status=extended_changes.get("_approval_status")
+        )
+        audit_logs.append(audit)
+
+    db.add_all(stocks)
+    db.add_all(audit_logs)
+    
+    return items
+
+
 def _create_resistor_item(
     db: Session,
     location_id: int,
@@ -247,102 +415,15 @@ def _create_resistor_item(
 ) -> Item:
     """
     Create a single item from resistor data.
-    
-    Args:
-        db: Database session
-        location_id: Location to store item
-        category_id: Category for item (optional)
-        resistor: Resistor data from AI
-        temp_image_key: Temporary image key to copy
-        user_id: User creating the item
-        quantity: Quantity of this resistor
-    
-    Returns:
-        Created Item
     """
-    value = resistor.get("value", "unknown")
-    ohms = resistor.get("ohms")
-    tolerance = resistor.get("tolerance")
-    confidence = resistor.get("confidence", 0)
-    
-    # Generate name
-    if value != "unknown" and ohms:
-        # Format resistance value
-        if ohms >= 1_000_000:
-            formatted_value = f"{ohms / 1_000_000:.1f}MΩ"
-        elif ohms >= 1_000:
-            formatted_value = f"{ohms / 1_000:.1f}kΩ"
-        else:
-            formatted_value = f"{ohms}Ω"
-        
-        name = f"Resistor {formatted_value}"
-        if tolerance:
-            name += f" {tolerance}"
-    else:
-        name = f"Unknown Resistor (Confidence: {confidence*100:.0f}%)"
-    
-    # Generate slug
-    base_slug = name.lower().replace(" ", "-").replace("ω", "ohm")
-    slug = f"{base_slug}-{uuid.uuid4().hex[:6]}"
-    
-    # Item data
-    item_data = {
-        "resistance_ohms": ohms,
-        "tolerance": tolerance,
-        "ai_confidence": confidence,
-        "source": "counting_plus",
-        "value_display": value
-    }
-    
-    # Determine if this should be considered AI-scraped or needs review
-    source = "AI_SCRAPED" if confidence >= 0.95 else "AI_GENERATED"
-    is_draft = confidence < 0.8  # Draft if low confidence
-    
-    # Create item
-    item = Item(
-        name=name,
-        slug=slug,
-        category_id=category_id,
-        is_draft=is_draft,
-        data=item_data
+    items = _create_resistor_items_bulk(
+        db, location_id, category_id, [resistor], temp_image_key, user_id, quantities=[quantity]
     )
-    db.add(item)
-    db.flush()  # Get ID
-    
-    # Copy image from temp if available
-    if temp_image_key:
-        try:
-            # Copy temp image to permanent location
-            new_key = f"items/{item.id}/counting-plus-{uuid.uuid4()}.jpg"
-            # Note: This would need storage.copy_file implementation
-            # For now, we'll skip copying to avoid complexity
-            # In production, implement: storage.copy_file(temp_image_key, new_key)
-            pass
-        except:
-            pass
-    
-    # Create stock entry
-    stock = Stock(
-        item_id=item.id,
-        location_id=location_id,
-        quantity=quantity
-    )
-    db.add(stock)
-    
-    # Create audit log
-    create_audit_log(
-        db=db,
-        entity_type="Item",
-        entity_id=item.id,
-        action="CREATE",
-        changes={"name": name, "quantity": quantity, "method": "counting_plus"},
-        source=source,
-        confidence=confidence,
-        user_id=user_id,
-        after_state=item_data
-    )
-    
-    return item
+    # The original function committed inside the loop, so for backwards compatibility of
+    # usages outside of bulk processing, we still commit here if it's called individually!
+    db.commit()
+    db.refresh(items[0])
+    return items[0]
 
 
 @router.get("/counting-plus/test", response_class=HTMLResponse)
