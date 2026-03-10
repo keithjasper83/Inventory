@@ -3,9 +3,11 @@
 Following DDD principles, domain services contain business logic that doesn't
 naturally fit within a single entity.
 """
+import asyncio
 from typing import Optional, List, Dict, Any
 import uuid
 from sqlalchemy.orm import Session
+from fastapi.concurrency import run_in_threadpool
 
 from src.models import Item, Category, Location, Stock, Media, AuditLog
 from src.domain.repositories import (
@@ -141,18 +143,17 @@ class ItemService:
         
         return item
     
-    def get_media_with_urls(self, item: Item, storage_service) -> List[Dict[str, Any]]:
+    async def get_media_with_urls(self, item: Item, storage_service) -> List[Dict[str, Any]]:
         """Get media list with presigned URLs."""
-        media_list = []
-        for m in item.media:
-            url = storage_service.get_presigned_url(m.s3_key)
-            media_list.append({
+        async def _get_url(m):
+            url = await run_in_threadpool(storage_service.get_presigned_url, m.s3_key)
+            return {
                 "type": m.type,
                 "s3_key": m.s3_key,
                 "url": url,
                 "metadata": m.metadata_json
-            })
-        return media_list
+            }
+        return await asyncio.gather(*(_get_url(m) for m in item.media))
 
 
 class LocationService:
