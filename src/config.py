@@ -6,7 +6,7 @@ class Settings(BaseSettings):
     APP_NAME: str = "Jules Inventory"
     SECRET_KEY: str = "supersecretkey" # Change in production
     ENVIRONMENT: str = "development"
-    TEST_MODE: bool = False
+    TEST_MODE: bool = os.environ.get('TEST_MODE') == '1'
     ADMIN_PASSWORD: str = "admin"
     TOKEN_EXPIRY_SECONDS: int = 86400
     AI_AUTO_APPLY_CONFIDENCE: float = 0.95
