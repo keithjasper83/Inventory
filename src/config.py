@@ -6,6 +6,12 @@ class Settings(BaseSettings):
     APP_NAME: str = "Jules Inventory"
     SECRET_KEY: str = "supersecretkey" # Change in production
     ENVIRONMENT: str = "development"
+    TEST_MODE: bool = False
+    ADMIN_PASSWORD: str = "admin"
+    TOKEN_EXPIRY_SECONDS: int = 86400
+    AI_AUTO_APPLY_CONFIDENCE: float = 0.95
+    AI_MANUAL_REVIEW_THRESHOLD: float = 0.80
+
 
     # Database
     DATABASE_URL: str = "postgresql+psycopg://postgres:postgres@localhost:5432/jules_inventory"
