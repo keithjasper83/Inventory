@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from src.database import SessionLocal
 from src.models import Item, Media, AuditLog
 from src.ai import ai_client
+from src.config import settings
 from src.storage import storage
 from src.settings_manager import settings_manager
 import asyncio
@@ -17,8 +18,6 @@ logger = logging.getLogger(__name__)
 
 # Constants for retry and AI validation
 MAX_RETRIES = 3
-AI_AUTO_APPLY_CONFIDENCE = 0.95
-AI_MANUAL_REVIEW_THRESHOLD = 0.80
 
 def retry_with_backoff(max_retries=3, initial_backoff=1.0, backoff_multiplier=2.0):
     """
@@ -60,7 +59,7 @@ def get_db():
     finally:
         db.close()
 
-def validate_ai_output(value: Any, field_name: str, expected_type: type) -> bool:
+def validate_ai_output(value: Any, field_name: str, expected_type: Optional[type] = None) -> bool:
     """
     Validate AI output before applying to database.
     
@@ -83,19 +82,8 @@ def validate_ai_output(value: Any, field_name: str, expected_type: type) -> bool
         return False
     
     # Type validation
-    if not isinstance(value, expected_type):
-        try:
-            # Try to convert
-            if expected_type == str:
-                value = str(value)
-            elif expected_type == int:
-                value = int(value)
-            elif expected_type == float:
-                value = float(value)
-            else:
-                return False
-        except (ValueError, TypeError):
-            return False
+    if expected_type and not isinstance(value, expected_type):
+        return False
     
     return True
 
@@ -132,19 +120,19 @@ def create_audit_log(
     # Store before/after states in the changes dict for compatibility with existing model
     extended_changes = {
         **changes,
-        "_before": before_state or {},
-        "_after": after_state or {},
-        "_user_id": user_id,
+        "before": before_state or {},
+        "after": after_state or {},
     }
     
-    # Determine approval status based on confidence (stored in changes for compatibility)
+    approval_status = None
+    # Determine approval status based on confidence
     if source in ["AI_GENERATED", "AI_SCRAPED"] and confidence is not None:
-        if confidence >= AI_AUTO_APPLY_CONFIDENCE:
-            extended_changes["_approval_status"] = "auto_approved"
-        elif confidence >= AI_MANUAL_REVIEW_THRESHOLD:
-            extended_changes["_approval_status"] = "pending"
+        if confidence >= settings.AI_AUTO_APPLY_CONFIDENCE:
+            approval_status = "auto_approved"
+        elif confidence >= settings.AI_MANUAL_REVIEW_THRESHOLD:
+            approval_status = "pending"
         else:
-            extended_changes["_approval_status"] = "needs_review"
+            approval_status = "needs_review"
     
     # Use previous_values for before state (existing field)
     audit = AuditLog(
@@ -154,7 +142,9 @@ def create_audit_log(
         changes=extended_changes,
         previous_values=before_state or {},
         source=source,
-        confidence=confidence
+        confidence=confidence,
+        user_id=user_id,
+        approval_status=approval_status
     )
     
     db.add(audit)
@@ -183,9 +173,15 @@ def scrape_item_task(item_id: int):
     try:
         item = db.query(Item).filter(Item.id == item_id).first()
         if not item:
-            logger.warning(f"Item {item_id} not found for scraping.")
+            logger.error(f"Item {item_id} not found for scraping.")
             return
         
+        # Check for available text to scrape
+        ocr_text = item.pending_changes.get('ocr_text') if item.pending_changes else None
+        if not ocr_text:
+            logger.warning(f"No text available for scraping item {item_id}.")
+            return
+
         # TODO: Implement standalone scraping logic for v2
         # For now, scraping happens automatically in process_item_image
         # when confidence >= 95%
