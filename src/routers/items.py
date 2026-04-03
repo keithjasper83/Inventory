@@ -1,4 +1,5 @@
 import os
+import asyncio
 from typing import List, Optional
 from fastapi import APIRouter, Depends, Request, Form, UploadFile, File, HTTPException, status
 from fastapi.responses import RedirectResponse, HTMLResponse
@@ -12,6 +13,7 @@ import redis
 from rq import Queue
 from src.database import get_db
 from src.models import Item, Media, Category, Location, Stock, AuditLog
+from src.domain.services import ItemService
 from src.dependencies import templates, require_user, get_current_user
 from src.storage import storage
 from src.ai import ai_client
@@ -126,7 +128,7 @@ async def create_item(
 
 @router.get("/i/{slug}", response_class=HTMLResponse)
 async def view_item_slug(slug: str, request: Request, db: Session = Depends(get_db), user=Depends(get_current_user)):
-    item = db.query(Item).options(joinedload(Item.category)).filter(Item.slug == slug).first()
+    item = db.query(Item).options(joinedload(Item.category), joinedload(Item.media)).filter(Item.slug == slug).first()
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
 
@@ -134,15 +136,8 @@ async def view_item_slug(slug: str, request: Request, db: Session = Depends(get_
     audit_logs = db.query(AuditLog).filter(AuditLog.entity_id == item.id).order_by(AuditLog.timestamp.desc()).all()
 
     # Generate Presigned URLs for media
-    media_list = []
-    for m in item.media:
-        url = storage.get_presigned_url(m.s3_key)
-        media_list.append({
-            "type": m.type,
-            "s3_key": m.s3_key,
-            "url": url,
-            "metadata": m.metadata_json
-        })
+    service = ItemService(db)
+    media_list = await service.get_media_with_urls(item, storage)
 
     return templates.TemplateResponse(
         request=request,
@@ -152,7 +147,7 @@ async def view_item_slug(slug: str, request: Request, db: Session = Depends(get_
 
 @router.get("/p/{id}", response_class=HTMLResponse)
 async def view_item_id(id: int, request: Request, db: Session = Depends(get_db), user=Depends(get_current_user)):
-    item = db.query(Item).options(joinedload(Item.category)).filter(Item.id == id).first()
+    item = db.query(Item).options(joinedload(Item.category), joinedload(Item.media)).filter(Item.id == id).first()
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
 
@@ -162,15 +157,8 @@ async def view_item_id(id: int, request: Request, db: Session = Depends(get_db),
     # Audit Logs
     audit_logs = db.query(AuditLog).filter(AuditLog.entity_id == item.id).order_by(AuditLog.timestamp.desc()).all()
 
-    media_list = []
-    for m in item.media:
-        url = storage.get_presigned_url(m.s3_key)
-        media_list.append({
-            "type": m.type,
-            "s3_key": m.s3_key,
-            "url": url,
-            "metadata": m.metadata_json
-        })
+    service = ItemService(db)
+    media_list = await service.get_media_with_urls(item, storage)
 
     return templates.TemplateResponse(
         request=request,

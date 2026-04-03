@@ -6,7 +6,10 @@ from starlette.middleware.sessions import SessionMiddleware
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 import os
+from sqlalchemy.orm import Session
 
+from src.database import get_db
+from src.models import Item
 from src.config import settings, validate_production_config
 from src.database import get_db
 from src.models import Item
@@ -47,17 +50,11 @@ app.include_router(admin.router)
 async def home(request: Request, user=Depends(get_current_user), db: Session = Depends(get_db)):
     if not user:
         return RedirectResponse(url="/login")
-
     total_items = db.query(Item).count()
-
     return templates.TemplateResponse(
         request=request,
         name="index.html",
-        context={
-            "request": request,
-            "user": user,
-            "total_items": total_items
-        }
+        context={"request": request, "user": user, "total_items": total_items}
     )
 
 # Catch-all / 404 Handler
