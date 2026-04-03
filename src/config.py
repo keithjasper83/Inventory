@@ -53,14 +53,17 @@ def validate_production_config():
     if settings.SECRET_KEY == "supersecretkey":
         errors.append("SECRET_KEY is using default value - must be changed for production")
     
-    if "postgres:postgres" in settings.DATABASE_URL and settings.ENVIRONMENT == "production":
+    if "postgres:postgres" in settings.DATABASE_URL:
         errors.append("DATABASE_URL contains default credentials - must be changed for production")
     
-    if settings.S3_ACCESS_KEY == "minioadmin" and settings.ENVIRONMENT == "production":
+    if settings.S3_ACCESS_KEY == "minioadmin":
         errors.append("S3_ACCESS_KEY is using default value - must be changed for production")
     
-    if settings.S3_SECRET_KEY == "minioadmin" and settings.ENVIRONMENT == "production":
+    if settings.S3_SECRET_KEY == "minioadmin":
         errors.append("S3_SECRET_KEY is using default value - must be changed for production")
+
+    if settings.TEST_MODE:
+        errors.append("TEST_MODE is enabled - must be disabled for production")
     
     if errors:
         raise ValueError(

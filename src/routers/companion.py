@@ -1,6 +1,7 @@
 import uuid
 import json
 import os
+import logging
 from fastapi import APIRouter, UploadFile, File, HTTPException, Request, Depends, status
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.concurrency import run_in_threadpool
@@ -15,19 +16,16 @@ from src.tasks import process_item_image
 from src.config import settings
 from src.dependencies import templates
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter()
 
 # Redis Connection (Reuse logic from items.py or similar, better to have a global dependency but doing inline for now to match style)
-try:
-    if os.environ.get("TEST_MODE"):
-        import fakeredis
-        redis_conn = fakeredis.FakeRedis()
-    else:
-        redis_conn = redis.from_url(settings.REDIS_URL)
-        # redis_conn.ping()
-except:
+if settings.TEST_MODE:
     import fakeredis
     redis_conn = fakeredis.FakeRedis()
+else:
+    redis_conn = redis.from_url(settings.REDIS_URL)
 
 q = Queue(connection=redis_conn)
 
@@ -119,7 +117,18 @@ async def companion_upload(
     db.commit()
 
     # Trigger AI
-    q.enqueue(process_item_image, item.id, media.id)
+    try:
+        q.enqueue(
+            process_item_image,
+            item.id,
+            media.id,
+            job_timeout=600,
+            result_ttl=86400,
+            failure_ttl=604800,
+            retry=None
+        )
+    except Exception:
+        logger.exception(f"Failed to enqueue process_item_image job for item {item.id} in companion mode")
 
     # Update Session Status
     new_data = {
