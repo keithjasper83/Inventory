@@ -104,7 +104,7 @@ redis==7.1.0
     # via
     #   -r requirements.in
     #   rq
-requests==2.32.3
+requests==2.33.1
     # via -r requirements.in
 rq==2.6.1
     # via -r requirements.in
