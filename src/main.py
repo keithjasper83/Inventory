@@ -1,4 +1,5 @@
 from fastapi import FastAPI, Request, status, Depends
+from sqlalchemy import select, func
 from sqlalchemy.orm import Session
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.gzip import GZipMiddleware
@@ -48,7 +49,7 @@ async def home(request: Request, user=Depends(get_current_user), db: Session = D
     if not user:
         return RedirectResponse(url="/login")
 
-    total_items = db.query(Item).count()
+    total_items = db.scalar(select(func.count(Item.id)))
 
     return templates.TemplateResponse(
         request=request,
