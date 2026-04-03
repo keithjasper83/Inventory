@@ -4,7 +4,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 from src.database import get_db
 from src.models import SystemSetting
-from src.dependencies import templates, require_user
+from src.dependencies import templates, require_user, require_admin
 from src.settings_manager import settings_manager
 from src.config import settings as app_settings
 import redis
@@ -13,7 +13,7 @@ from rq import Queue
 router = APIRouter()
 
 @router.get("/admin", response_class=HTMLResponse)
-async def admin_dashboard(request: Request, db: Session = Depends(get_db), user=Depends(require_user)):
+async def admin_dashboard(request: Request, db: Session = Depends(get_db), user=Depends(require_admin)):
     # 1. Fetch Settings
     # We want to show all defaults + overrides
     current_settings = settings_manager.get_all()
@@ -21,7 +21,6 @@ async def admin_dashboard(request: Request, db: Session = Depends(get_db), user=
     # 2. Fetch Stats
     stats = {}
     try:
-        # Mock redis if needed
         if os.environ.get("TEST_MODE"):
             import fakeredis
             r = fakeredis.FakeRedis()
@@ -60,7 +59,7 @@ async def update_settings(
     presigned_url_expiry: int = Form(...),
     rq_retry_max: int = Form(...),
     db: Session = Depends(get_db),
-    user=Depends(require_user)
+    user=Depends(require_admin)
 ):
     settings_manager.set("ai_confidence_threshold", ai_confidence_threshold)
     settings_manager.set("scrape_timeout", scrape_timeout)

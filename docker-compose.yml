@@ -116,12 +116,12 @@ services:
     restart: unless-stopped
     command: >
       sh -c "
-        echo 'Waiting for services...' &&
-        sleep 5 &&
+        echo 'Waiting for database...' &&
+        until pg_isready -h postgres -U postgres; do sleep 1; done &&
         echo 'Running database migrations...' &&
         alembic upgrade head &&
         echo 'Initializing storage...' &&
-        python scripts/init_storage.py || echo 'Storage init failed, continuing...' &&
+        python scripts/init_storage.py &&
         echo 'Seeding data...' &&
         python scripts/seed_data.py &&
         echo 'Starting application...' &&

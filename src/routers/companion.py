@@ -18,16 +18,12 @@ from src.dependencies import templates
 router = APIRouter()
 
 # Redis Connection (Reuse logic from items.py or similar, better to have a global dependency but doing inline for now to match style)
-try:
-    if os.environ.get("TEST_MODE"):
-        import fakeredis
-        redis_conn = fakeredis.FakeRedis()
-    else:
-        redis_conn = redis.from_url(settings.REDIS_URL)
-        # redis_conn.ping()
-except:
+if os.environ.get("TEST_MODE"):
     import fakeredis
     redis_conn = fakeredis.FakeRedis()
+else:
+    redis_conn = redis.from_url(settings.REDIS_URL)
+    # redis_conn.ping()
 
 q = Queue(connection=redis_conn)
 
@@ -119,7 +115,20 @@ async def companion_upload(
     db.commit()
 
     # Trigger AI
-    q.enqueue(process_item_image, item.id, media.id)
+    try:
+        q.enqueue(
+            process_item_image,
+            item.id,
+            media.id,
+            job_timeout=600,
+            result_ttl=86400,
+            failure_ttl=604800,
+            retry=None
+        )
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Failed to enqueue process_item_image job for item {item.id} in companion mode: {e}")
 
     # Update Session Status
     new_data = {
