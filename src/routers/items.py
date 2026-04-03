@@ -25,12 +25,11 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 # Redis Connection
-if os.environ.get("TEST_MODE"):
+if settings.TEST_MODE:
     import fakeredis
     redis_conn = fakeredis.FakeRedis()
 else:
     redis_conn = redis.from_url(settings.REDIS_URL)
-    redis_conn.ping() # Check connection
 
 q = Queue(connection=redis_conn)
 
@@ -124,8 +123,8 @@ async def create_item(
                 failure_ttl=604800,
                 retry=None
             )
-        except Exception as e:
-            logger.error(f"Failed to enqueue process_item_image job for item {item.id}: {e}")
+        except Exception:
+            logger.exception(f"Failed to enqueue process_item_image job for item {item.id}")
 
     if item.slug:
         return RedirectResponse(url=f"/i/{item.slug}", status_code=status.HTTP_303_SEE_OTHER)

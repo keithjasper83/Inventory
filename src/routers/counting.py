@@ -33,12 +33,11 @@ from src.tasks import create_audit_log, validate_ai_output
 router = APIRouter()
 
 # Redis Connection
-if os.environ.get("TEST_MODE"):
+if settings.TEST_MODE:
     import fakeredis
     redis_conn = fakeredis.FakeRedis()
 else:
     redis_conn = redis.from_url(settings.REDIS_URL)
-    redis_conn.ping()
 
 q = Queue(connection=redis_conn)
 
@@ -265,8 +264,6 @@ def _create_resistor_items_bulk(
     """
     Create multiple items from resistor data in bulk.
     """
-    from src.config import settings
-
     if not resistors:
         return []
 
