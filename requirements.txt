@@ -100,7 +100,7 @@ pytz==2025.2
     #   croniter
 pyyaml==6.0.3
     # via -r requirements.in
-redis==7.1.0
+redis==7.4.0
     # via
     #   -r requirements.in
     #   rq
