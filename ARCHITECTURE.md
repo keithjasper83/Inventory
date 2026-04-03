@@ -608,3 +608,16 @@ The architecture balances pragmatism with best practices, delivering a productio
 **Document Version**: 1.0  
 **Last Updated**: 2026-01-21  
 **Maintained by**: Development Team
+
+## Beta Hardening Improvements (Phase 1-5)
+
+### Database Constraints and Connections
+The PostgreSQL database engine is properly tuned with explicit `pool_size` limits, `max_overflow`, and `pool_pre_ping` protections, preventing DB thread crashes under API load spikes. Data structures have explicitly transitioned from arbitrary server dates to explicit UTC-timezone-aware definitions, keeping time boundaries in the frontend unambiguous.
+- We utilize optimistic locking (`version_id` column) on core `Item` mutations.
+- List queries explicitly truncate resultsets at 100 elements bounding JSON serialization latency. Eager `joinedload` queries prevent N+1 database roundtrips.
+
+### Idempotency and Throttling
+Heavy routes (like form uploads) rely on slowapi rate limits and explicit Idempotency headers stored temporarily in Redis. Concurrent clicks by users no longer queue multiple duplicate AI Background processing tasks due to the Idempotent locking API middleware.
+
+### Deployment Safety
+To safely deploy the API in containerized environments with race-conditions (Compose clusters mapping to slow internal MinIO or Postgres processes), we inject explicit `wait_for_services.py` bootstrap barriers in `.dockerignore` optimized runtime containers.

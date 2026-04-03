@@ -11,7 +11,8 @@ fi
 source venv/bin/activate
 
 echo "Installing dependencies..."
-pip install -r requirements.txt || pip install .
+pip install -r requirements.txt
+pip install -r requirements-dev.txt || pip install .
 
 # 2. Config
 if [ ! -f "config/ai_host.env" ]; then

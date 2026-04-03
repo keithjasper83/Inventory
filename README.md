@@ -154,3 +154,12 @@ pytest tests/ --cov=src --cov-report=html
 - `.env.production` — Production environment template
 - `config/ai_host.env.example` — AI service configuration
 
+
+## Beta Hardening Update (Phase 1-5)
+
+In addition to core features, the system is now hardened for production environments:
+- **Reproducible Installs**: Deterministic `requirements.txt` via `pip-tools`.
+- **Infrastructure Readiness**: Docker setup checks database/redis/s3 readiness implicitly via `wait_for_services.py` and robust `app/health` and `app/readiness` APIs.
+- **Resilient AI Workers**: RQ tasks are bounded by 5m timeouts, 24-hr TTLs, and explicit error handlers to prevent application blocking. Admins can replay failed AI jobs securely.
+- **Config & Security**: Pydantic typed `Settings` objects replace scattered configuration. `slowapi` rate limiting protects heavy endpoint abuse.
+- **Concurrency & Database**: Optimistic locking (`version_id`) guards Item modifications. Heavy inventory DB read ops enforce explicit bounds via batch limits and query N+1 detection.

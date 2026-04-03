@@ -1,3 +1,6 @@
+import os
+os.environ['TEST_MODE'] = '1'
+
 import pytest
 from unittest.mock import MagicMock
 from fastapi.testclient import TestClient

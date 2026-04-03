@@ -570,3 +570,9 @@ Common issues and solutions:
 ---
 
 For questions or issues, please refer to the main README.md or contact the development team.
+
+## Beta Security & Hardening Extensions (Phase 1-5)
+- **Settings Configuration Strictness**: Defaults such as `admin/admin` or `supersecretkey` configurations are forcefully blocked during production environments starting the runtime (`ENVIRONMENT=production`).
+- **Dependencies Review & Upgrades**: Pinned dependencies using pip-tools and managed via Dependabot `ci.yml` scanning preventing supply chain poisoning attacks.
+- **Throttling Abuse Vectors**: `slowapi` restricts users submitting thousands of AI ingestion processes concurrently per minute from overloading internal Redis caches or consuming GPU limits.
+- **Graceful Failure Isolation**: The FastAPI frontend explicitly degrades on Background Job connection issues instead of crashing 500 routes if external task pipelines fail. Admins have specific privileged roles to review and requeue tasks natively from the DB.
