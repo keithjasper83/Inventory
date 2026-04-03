@@ -5,7 +5,11 @@ from fastapi.middleware.gzip import GZipMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
+from fastapi.concurrency import run_in_threadpool
+from contextlib import asynccontextmanager
 import os
+import logging
+import redis as _redis
 from sqlalchemy.orm import Session
 
 from src.database import get_db
@@ -17,6 +21,8 @@ from src.dependencies import templates, get_current_user
 from src.routers import auth, items, search, locations, categories, admin, health, counting
 from src.ai import ai_client
 
+logger = logging.getLogger(__name__)
+
 # Validate production configuration on startup
 if os.environ.get("ENVIRONMENT") == "production" or settings.ENVIRONMENT == "production":
     try:
@@ -26,7 +32,26 @@ if os.environ.get("ENVIRONMENT") == "production" or settings.ENVIRONMENT == "pro
         print(f"FATAL: Production configuration validation failed:\n{e}", file=sys.stderr)
         sys.exit(1)
 
-app = FastAPI(title=settings.APP_NAME)
+
+@asynccontextmanager
+async def lifespan(application: FastAPI):
+    """Application lifespan: verify Redis connectivity at startup (skipped in TEST_MODE)."""
+    if not settings.TEST_MODE:
+        try:
+            conn = _redis.from_url(settings.REDIS_URL, socket_connect_timeout=5)
+            await run_in_threadpool(conn.ping)
+        except Exception as exc:
+            from urllib.parse import urlparse
+            parsed = urlparse(settings.REDIS_URL)
+            safe_url = parsed._replace(password="****").geturl() if parsed.password else settings.REDIS_URL
+            raise RuntimeError(
+                f"Failed to connect to Redis during startup. "
+                f"Check REDIS_URL configuration and ensure Redis is reachable: {safe_url}"
+            ) from exc
+    yield
+
+
+app = FastAPI(title=settings.APP_NAME, lifespan=lifespan)
 
 # Middleware
 app.add_middleware(SessionMiddleware, secret_key=settings.SECRET_KEY)

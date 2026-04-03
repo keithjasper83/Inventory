@@ -33,17 +33,11 @@ from src.tasks import create_audit_log, validate_ai_output
 router = APIRouter()
 
 # Redis Connection
-try:
-    if os.environ.get("TEST_MODE"):
-        import fakeredis
-        redis_conn = fakeredis.FakeRedis()
-    else:
-        redis_conn = redis.from_url(settings.REDIS_URL)
-        redis_conn.ping()
-except:
+if settings.TEST_MODE:
     import fakeredis
-    logger.warning("Redis not available, using FakeRedis for Counting+")
     redis_conn = fakeredis.FakeRedis()
+else:
+    redis_conn = redis.from_url(settings.REDIS_URL)
 
 q = Queue(connection=redis_conn)
 
@@ -270,8 +264,6 @@ def _create_resistor_items_bulk(
     """
     Create multiple items from resistor data in bulk.
     """
-    from src.tasks import AI_AUTO_APPLY_CONFIDENCE, AI_MANUAL_REVIEW_THRESHOLD
-
     if not resistors:
         return []
 
@@ -378,9 +370,9 @@ def _create_resistor_items_bulk(
         confidence = meta["confidence"]
 
         if source in ["AI_GENERATED", "AI_SCRAPED"] and confidence is not None:
-            if confidence >= AI_AUTO_APPLY_CONFIDENCE:
+            if confidence >= settings.AI_AUTO_APPLY_CONFIDENCE:
                 extended_changes["_approval_status"] = "auto_approved"
-            elif confidence >= AI_MANUAL_REVIEW_THRESHOLD:
+            elif confidence >= settings.AI_MANUAL_REVIEW_THRESHOLD:
                 extended_changes["_approval_status"] = "pending"
             else:
                 extended_changes["_approval_status"] = "needs_review"

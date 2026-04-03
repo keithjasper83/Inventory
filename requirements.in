@@ -19,3 +19,4 @@ pytz
 PyYAML
 requests
 httpx
+itsdangerous
