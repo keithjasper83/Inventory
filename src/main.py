@@ -1,4 +1,5 @@
 from fastapi import FastAPI, Request, status, Depends
+from sqlalchemy.orm import Session
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.gzip import GZipMiddleware
 from starlette.middleware.sessions import SessionMiddleware
@@ -10,6 +11,8 @@ from sqlalchemy.orm import Session
 from src.database import get_db
 from src.models import Item
 from src.config import settings, validate_production_config
+from src.database import get_db
+from src.models import Item
 from src.dependencies import templates, get_current_user
 from src.routers import auth, items, search, locations, categories, admin, health, counting
 from src.ai import ai_client
