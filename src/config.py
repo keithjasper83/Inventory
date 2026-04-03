@@ -27,6 +27,10 @@ class Settings(BaseSettings):
     BUCKET_MEDIA: str = "inventory-media"
     BUCKET_DOCS: str = "inventory-docs"
 
+    # AI Settings
+    AI_AUTO_APPLY_CONFIDENCE: float = 0.95
+    AI_MANUAL_REVIEW_THRESHOLD: float = 0.80
+
     # AI Host (Jarvis)
     JARVIS_BASE_URL: str = "" # To be loaded from config/ai_host.env
     JARVIS_HEALTH_PATH: str = "/health"
