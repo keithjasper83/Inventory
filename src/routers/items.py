@@ -14,7 +14,7 @@ from rq import Queue
 from src.database import get_db
 from src.models import Item, Media, Category, Location, Stock, AuditLog
 from src.domain.services import ItemService
-from src.dependencies import templates, require_user, get_current_user
+from src.dependencies import templates, require_user, require_reviewer, get_current_user
 from src.storage import storage
 from src.ai import ai_client
 from src.tasks import process_item_image
@@ -25,17 +25,11 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 # Redis Connection
-try:
-    if os.environ.get("TEST_MODE"):
-        import fakeredis
-        redis_conn = fakeredis.FakeRedis()
-    else:
-        redis_conn = redis.from_url(settings.REDIS_URL)
-        redis_conn.ping() # Check connection
-except:
+if settings.TEST_MODE:
     import fakeredis
-    logger.warning("Redis not available, using FakeRedis")
     redis_conn = fakeredis.FakeRedis()
+else:
+    redis_conn = redis.from_url(settings.REDIS_URL)
 
 q = Queue(connection=redis_conn)
 
@@ -119,7 +113,18 @@ async def create_item(
 
     # Trigger AI Jobs (Queued)
     if 'media' in locals() and media.id:
-        q.enqueue(process_item_image, item.id, media.id)
+        try:
+            q.enqueue(
+                process_item_image,
+                item.id,
+                media.id,
+                job_timeout=600,
+                result_ttl=86400,
+                failure_ttl=604800,
+                retry=None
+            )
+        except Exception:
+            logger.exception(f"Failed to enqueue process_item_image job for item {item.id}")
 
     if item.slug:
         return RedirectResponse(url=f"/i/{item.slug}", status_code=status.HTTP_303_SEE_OTHER)
@@ -167,15 +172,17 @@ async def view_item_id(id: int, request: Request, db: Session = Depends(get_db),
     )
 
 @router.post("/items/{id}/approve")
-async def approve_changes(id: int, request: Request, db: Session = Depends(get_db), user=Depends(require_user)):
+async def approve_changes(id: int, request: Request, db: Session = Depends(get_db), user=Depends(require_reviewer)):
     item = db.query(Item).filter(Item.id == id).first()
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
 
     if item.pending_changes:
+        pending_changes = item.pending_changes.copy()
+        previous_data = dict(item.data)
         # Shallow merge data (top level keys)
         data = dict(item.data)
-        data.update(item.pending_changes)
+        data.update(pending_changes)
         item.data = data
         item.pending_changes = {}
 
@@ -183,8 +190,10 @@ async def approve_changes(id: int, request: Request, db: Session = Depends(get_d
             entity_type="Item",
             entity_id=item.id,
             action="APPROVE",
-            changes=item.pending_changes,
-            source="USER"
+            changes={"before": previous_data, "after": data, "approved_changes": pending_changes},
+            source="USER",
+            user_id=user.id,
+            approval_status="approved"
         )
         db.add(audit)
         db.commit()
@@ -192,27 +201,30 @@ async def approve_changes(id: int, request: Request, db: Session = Depends(get_d
     return RedirectResponse(url=f"/p/{id}", status_code=status.HTTP_303_SEE_OTHER)
 
 @router.post("/items/{id}/reject")
-async def reject_changes(id: int, request: Request, db: Session = Depends(get_db), user=Depends(require_user)):
+async def reject_changes(id: int, request: Request, db: Session = Depends(get_db), user=Depends(require_reviewer)):
     item = db.query(Item).filter(Item.id == id).first()
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
 
     if item.pending_changes:
+        rejected_changes = item.pending_changes.copy()
         item.pending_changes = {}
 
         audit = AuditLog(
             entity_type="Item",
             entity_id=item.id,
             action="REJECT",
-            changes={},
-            source="USER"
+            changes={"rejected_changes": rejected_changes},
+            source="USER",
+            user_id=user.id,
+            approval_status="rejected"
         )
         db.add(audit)
         db.commit()
 
     return RedirectResponse(url=f"/p/{id}", status_code=status.HTTP_303_SEE_OTHER)
 @router.post("/items/{id}/audit/{log_id}/undo")
-async def undo_change(id: int, log_id: int, request: Request, db: Session = Depends(get_db), user=Depends(require_user)):
+async def undo_change(id: int, log_id: int, request: Request, db: Session = Depends(get_db), user=Depends(require_reviewer)):
     item = db.query(Item).filter(Item.id == id).first()
     log = db.query(AuditLog).filter(AuditLog.id == log_id, AuditLog.entity_id == id).first()
 

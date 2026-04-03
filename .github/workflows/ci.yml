@@ -55,5 +55,6 @@ jobs:
         DATABASE_URL: postgresql+psycopg://test_user:test_password@localhost:5432/test_db
         REDIS_URL: redis://localhost:6379/0
         SECRET_KEY: test_secret_key
+        PYTHONPATH: .
       run: |
         pytest tests/ -v
