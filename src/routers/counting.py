@@ -377,21 +377,20 @@ def _create_resistor_items_bulk(
             else:
                 extended_changes["_approval_status"] = "needs_review"
 
-        audit = AuditLog(
+        create_audit_log(
+            db=db, # create_audit_log adds to db immediately
             entity_type="Item",
             entity_id=item.id,
             action="CREATE",
             changes=extended_changes,
-            previous_values={},
+            before_state={},
             source=source,
-            confidence=confidence,
+            confidence=int(confidence * 100) if confidence is not None else None,
             user_id=user_id,
             approval_status=extended_changes.get("_approval_status")
         )
-        audit_logs.append(audit)
 
     db.add_all(stocks)
-    db.add_all(audit_logs)
     
     return items
 

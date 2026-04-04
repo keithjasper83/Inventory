@@ -94,8 +94,9 @@ def create_audit_log(
     action: str,
     changes: Dict[str, Any],
     source: str = "USER",
-    confidence: Optional[float] = None,
+    confidence: Optional[int] = None,
     user_id: Optional[int] = None,
+    approval_status: Optional[str] = None,
     before_state: Optional[Dict[str, Any]] = None,
     after_state: Optional[Dict[str, Any]] = None
 ) -> AuditLog:
@@ -124,12 +125,11 @@ def create_audit_log(
         "after": after_state or {},
     }
     
-    approval_status = None
-    # Determine approval status based on confidence
-    if source in ["AI_GENERATED", "AI_SCRAPED"] and confidence is not None:
-        if confidence >= settings.AI_AUTO_APPLY_CONFIDENCE:
+    # Determine approval status based on confidence, assuming confidence is an int 0-100
+    if approval_status is None and source in ["AI_GENERATED", "AI_SCRAPED"] and confidence is not None:
+        if confidence >= settings.AI_AUTO_APPLY_CONFIDENCE * 100:
             approval_status = "auto_approved"
-        elif confidence >= settings.AI_MANUAL_REVIEW_THRESHOLD:
+        elif confidence >= settings.AI_MANUAL_REVIEW_THRESHOLD * 100:
             approval_status = "pending"
         else:
             approval_status = "needs_review"
@@ -231,15 +231,15 @@ def scrape_item_task(item_id: int):
 
             item.pending_changes = updated_pending
 
-            audit = AuditLog(
+            create_audit_log(
+                db=db,
                 entity_type="Item",
                 entity_id=item.id,
                 action="SUGGEST",
                 changes={"scraped_url": url, "docs": len(downloaded_docs)},
                 source="AI_SCRAPED",
-                confidence=100
+                confidence=100,
             )
-            db.add(audit)
             db.commit()
             logger.info(f"Successfully scraped item {item_id} from {url}")
 
@@ -362,15 +362,15 @@ def process_item_image(item_id: int, media_id: int):
              changes['ocr_text'] = "pending"
 
              # Audit
-             audit = AuditLog(
+             create_audit_log(
+                db=db,
                 entity_type="Item",
                 entity_id=item.id,
                 action="SUGGEST",
                 changes={"ocr": "pending"},
                 source="AI_GENERATED",
-                confidence=int(ocr_confidence * 100)
+                confidence=int(ocr_confidence * 100),
              )
-             db.add(audit)
 
         # Process Resistor
         if isinstance(resistor_result, dict) and resistor_result.get('is_resistor'):
@@ -385,15 +385,15 @@ def process_item_image(item_id: int, media_id: int):
 
             source = "AI_SCRAPED" if confidence >= 0.95 else "AI_GENERATED"
 
-            audit = AuditLog(
+            create_audit_log(
+                db=db,
                 entity_type="Item",
                 entity_id=item.id,
                 action="SUGGEST",
                 changes={"resistance": resistance, "tolerance": tolerance},
                 source=source,
-                confidence=int(confidence * 100)
+                confidence=int(confidence * 100),
             )
-            db.add(audit)
 
         db.commit()
 
@@ -450,15 +450,15 @@ def process_item_image(item_id: int, media_id: int):
 
                 item.pending_changes = pending
 
-                audit = AuditLog(
+                create_audit_log(
+                    db=db,
                     entity_type="Item",
                     entity_id=item.id,
                     action="SUGGEST",
                     changes={"scraped_url": url, "docs": len(downloaded_docs)},
                     source="AI_SCRAPED",
-                    confidence=100
+                    confidence=100,
                 )
-                db.add(audit)
                 db.commit()
 
     except Exception as e:
