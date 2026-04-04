@@ -98,7 +98,8 @@ def create_audit_log(
     user_id: Optional[int] = None,
     approval_status: Optional[str] = None,
     before_state: Optional[Dict[str, Any]] = None,
-    after_state: Optional[Dict[str, Any]] = None
+    after_state: Optional[Dict[str, Any]] = None,
+    commit: bool = True
 ) -> AuditLog:
     """
     Create a comprehensive audit log entry.
@@ -110,10 +111,15 @@ def create_audit_log(
         action: Action performed (CREATE, UPDATE, DELETE, SUGGEST, APPROVE, REJECT)
         changes: Dictionary of changes made
         source: Source of change (USER, AI_GENERATED, AI_SCRAPED)
-        confidence: AI confidence score (0.0-1.0)
+        confidence: AI confidence score as integer 0–100
         user_id: ID of user who initiated the action
+        approval_status: Explicit approval status; derived from confidence when omitted
+                         for AI sources (auto_approved / pending / needs_review)
         before_state: State before changes
         after_state: State after changes
+        commit: When True (default) the session is committed and refreshed after adding
+                the entry.  Pass False when the caller is already inside a transaction
+                and wants to control when the commit happens (add/flush only).
         
     Returns:
         Created AuditLog entry
@@ -148,8 +154,11 @@ def create_audit_log(
     )
     
     db.add(audit)
-    db.commit()
-    db.refresh(audit)
+    if commit:
+        db.commit()
+        db.refresh(audit)
+    else:
+        db.flush()
     
     return audit
 
@@ -370,6 +379,7 @@ def process_item_image(item_id: int, media_id: int):
                 changes={"ocr": "pending"},
                 source="AI_GENERATED",
                 confidence=int(ocr_confidence * 100),
+                commit=False,
              )
 
         # Process Resistor
@@ -393,6 +403,7 @@ def process_item_image(item_id: int, media_id: int):
                 changes={"resistance": resistance, "tolerance": tolerance},
                 source=source,
                 confidence=int(confidence * 100),
+                commit=False,
             )
 
         db.commit()
@@ -458,6 +469,7 @@ def process_item_image(item_id: int, media_id: int):
                     changes={"scraped_url": url, "docs": len(downloaded_docs)},
                     source="AI_SCRAPED",
                     confidence=100,
+                    commit=False,
                 )
                 db.commit()
 
