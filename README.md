@@ -37,7 +37,7 @@ A local-first, AI-assisted workshop inventory system designed for fast photo cap
 - Enhanced audit logging with pre/post state tracking
 - Automatic retry mechanisms for transient failures
 - AI validation and confidence-based approval workflows
-- **See [SECURITY.md](SECURITY.md) for complete security documentation**
+- **See [SECURITY.md](docs/SECURITY.md) for complete security documentation**
 
 ## Setup
 
@@ -64,7 +64,7 @@ The quick-start script will:
 - ✅ Start all services (PostgreSQL, Redis, self-hosted MinIO, App)
 - ✅ Wait for services to be ready
 
-See [DEPLOYMENT.md](DEPLOYMENT.md) for:
+See [DEPLOYMENT.md](docs/DEPLOYMENT.md) for:
 - Production deployment
 - External database/Redis/S3 configuration
 - Manual installation
@@ -107,7 +107,7 @@ For development or when Docker is not available:
 
 ## Configuration
 
-Critical security settings are configured via environment variables. See [SECURITY.md](SECURITY.md) for:
+Critical security settings are configured via environment variables. See [SECURITY.md](docs/SECURITY.md) for:
 - Environment variable configuration
 - Role-based access setup
 - Audit logging configuration
@@ -130,24 +130,26 @@ pytest tests/ --cov=src --cov-report=html
 
 ## 📚 Documentation
 
+All documentation lives under [`docs/`](docs/).
+
 ### Getting Started
 - **[README.md](README.md)** — This file, quick start guide
-- **[DEPLOYMENT.md](DEPLOYMENT.md)** — Complete deployment guide
-- **[PRE_LAUNCH_CHECKLIST.md](PRE_LAUNCH_CHECKLIST.md)** — Beta launch verification
+- **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)** — Complete deployment guide
+- **[docs/reports/PRE_LAUNCH_CHECKLIST.md](docs/reports/PRE_LAUNCH_CHECKLIST.md)** — Beta launch verification
 
 ### Architecture & Design
-- **[ARCHITECTURE.md](ARCHITECTURE.md)** — System architecture and design decisions
-- **[SPECIFICATION.txt](SPECIFICATION.txt)** — Original product specification
-- **[VALIDATION_SUMMARY.md](VALIDATION_SUMMARY.md)** — DDD/SOC compliance verification
+- **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** — System architecture and design decisions
+- **[docs/SPECIFICATION.txt](docs/SPECIFICATION.txt)** — Original product specification
+- **[docs/reports/VALIDATION_SUMMARY.md](docs/reports/VALIDATION_SUMMARY.md)** — DDD/SOC compliance verification
 
 ### Features & Roadmap
-- **[VERSION_1_FEATURES.md](VERSION_1_FEATURES.md)** — Complete v1.0 feature list
-- **[VERSION_2_ROADMAP.md](VERSION_2_ROADMAP.md)** — Future features and timeline
+- **[docs/VERSION_1_FEATURES.md](docs/VERSION_1_FEATURES.md)** — Complete v1.0 feature list
+- **[docs/VERSION_2_ROADMAP.md](docs/VERSION_2_ROADMAP.md)** — Future features and timeline
 
-### Security & Operations
-- **[SECURITY.md](SECURITY.md)** — Security features and configuration
-- **[agents.md](agents.md)** — AI policy and permissions
-- **[FINAL_BETA_STATUS.md](FINAL_BETA_STATUS.md)** — Beta status report
+### Security & AI Policy
+- **[docs/SECURITY.md](docs/SECURITY.md)** — Security features and configuration
+- **[docs/ai/agents.md](docs/ai/agents.md)** — AI policy and permissions
+- **[docs/reports/FINAL_BETA_STATUS.md](docs/reports/FINAL_BETA_STATUS.md)** — Beta status report
 
 ### Configuration Templates
 - `.env.example` — Development environment template
