@@ -12,7 +12,7 @@ from rq import Queue
 from src.database import get_db
 from src.models import Item, Media, AuditLog, Stock
 from src.storage import storage
-from src.tasks import process_item_image
+from src.tasks import process_item_image, create_audit_log
 from src.config import settings
 from src.dependencies import templates
 
@@ -106,14 +106,14 @@ async def companion_upload(
     db.add(media)
 
     # Audit
-    audit = AuditLog(
+    create_audit_log(
+        db=db,
         entity_type="Item",
         entity_id=item.id,
         action="CREATE",
         changes={"source": "companion_app"},
         source="USER"
     )
-    db.add(audit)
     db.commit()
 
     # Trigger AI

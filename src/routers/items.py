@@ -17,7 +17,7 @@ from src.domain.services import ItemService
 from src.dependencies import templates, require_user, require_reviewer, get_current_user
 from src.storage import storage
 from src.ai import ai_client
-from src.tasks import process_item_image
+from src.tasks import process_item_image, create_audit_log
 from src.config import settings
 
 logger = logging.getLogger(__name__)
@@ -100,14 +100,15 @@ async def create_item(
     db.add(stock)
 
     # Audit Log
-    audit = AuditLog(
+    create_audit_log(
+        db=db,
         entity_type="Item",
         entity_id=item.id,
         action="CREATE",
         changes={"name": name, "is_draft": is_draft},
-        source="USER"
+        source="USER",
+        user_id=user.id if user else None
     )
-    db.add(audit)
 
     db.commit()
 
@@ -186,16 +187,18 @@ async def approve_changes(id: int, request: Request, db: Session = Depends(get_d
         item.data = data
         item.pending_changes = {}
 
-        audit = AuditLog(
+        create_audit_log(
+            db=db,
             entity_type="Item",
             entity_id=item.id,
             action="APPROVE",
-            changes={"before": previous_data, "after": data, "approved_changes": pending_changes},
+            changes={"approved_changes": pending_changes},
+            before_state=previous_data,
+            after_state=data,
             source="USER",
             user_id=user.id,
             approval_status="approved"
         )
-        db.add(audit)
         db.commit()
 
     return RedirectResponse(url=f"/p/{id}", status_code=status.HTTP_303_SEE_OTHER)
@@ -210,7 +213,8 @@ async def reject_changes(id: int, request: Request, db: Session = Depends(get_db
         rejected_changes = item.pending_changes.copy()
         item.pending_changes = {}
 
-        audit = AuditLog(
+        create_audit_log(
+            db=db,
             entity_type="Item",
             entity_id=item.id,
             action="REJECT",
@@ -219,7 +223,6 @@ async def reject_changes(id: int, request: Request, db: Session = Depends(get_db
             user_id=user.id,
             approval_status="rejected"
         )
-        db.add(audit)
         db.commit()
 
     return RedirectResponse(url=f"/p/{id}", status_code=status.HTTP_303_SEE_OTHER)
@@ -260,15 +263,16 @@ async def undo_change(id: int, log_id: int, request: Request, db: Session = Depe
     log.is_undone = True
 
     # Create new audit log for the undo
-    undo_log = AuditLog(
+    create_audit_log(
+        db=db,
         entity_type="Item",
         entity_id=item.id,
         action="UNDO",
         changes=changes_made, # What we reverted TO
         source="USER",
-        confidence=100
+        confidence=100,
+        user_id=user.id if user else None
     )
-    db.add(undo_log)
     db.commit()
 
     return RedirectResponse(url=f"/p/{id}", status_code=status.HTTP_303_SEE_OTHER)

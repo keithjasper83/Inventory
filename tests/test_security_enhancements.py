@@ -1,5 +1,3 @@
-import pytest
-pytestmark = pytest.mark.skip(reason="Needs refactoring for isolated session")
 """
 Enhanced test coverage for security and stability improvements.
 Tests for retry mechanisms, role-based access, and enhanced audit logging.
@@ -284,12 +282,13 @@ class TestDatabaseRollback:
 class TestConcurrentTasks:
     """Test multi-task concurrency scenarios."""
     
+    @patch("src.tasks.settings_manager")
     @patch("src.tasks.SessionLocal")
     @patch("src.tasks.storage")
     @patch("src.tasks.ai_client")
     @patch("src.tasks.Image")
     def test_concurrent_processing_different_items(
-        self, mock_image, mock_ai, mock_storage, mock_session_cls
+        self, mock_image, mock_ai, mock_storage, mock_session_cls, mock_settings_manager
     ):
         """Test processing multiple items concurrently."""
         # Create separate DB sessions for each task
@@ -316,6 +315,8 @@ class TestConcurrentTasks:
         
         mock_ai.ocr_image = AsyncMock(return_value={"text": "Item 1", "confidence": 0.99})
         mock_ai.identify_resistor = AsyncMock(return_value={"is_resistor": False})
+        mock_ai.find_product_url = AsyncMock(return_value=None)
+        mock_settings_manager.get.return_value = 0.95
         
         # Process first item
         process_item_image(1, 1)
@@ -362,4 +363,4 @@ class TestErrorHandlingAndLogging:
         scrape_item_task(1)
         
         mock_logger.warning.assert_called()
-        assert "No text available" in str(mock_logger.warning.call_args)
+        assert "no suitable search query" in str(mock_logger.warning.call_args)

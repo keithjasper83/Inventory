@@ -357,41 +357,26 @@ def _create_resistor_items_bulk(
         )
         stocks.append(stock)
 
-        # We manually build the audit log dict to avoid db.commit() which happens inside create_audit_log
-        changes = {"name": meta["name"], "quantity": meta["quantity"], "method": "counting_plus"}
-        extended_changes = {
-            **changes,
-            "_before": {},
-            "_after": meta["item_data"],
-            "_user_id": user_id,
-        }
-
         source = meta["source"]
         confidence = meta["confidence"]
 
-        if source in ["AI_GENERATED", "AI_SCRAPED"] and confidence is not None:
-            if confidence >= settings.AI_AUTO_APPLY_CONFIDENCE:
-                extended_changes["_approval_status"] = "auto_approved"
-            elif confidence >= settings.AI_MANUAL_REVIEW_THRESHOLD:
-                extended_changes["_approval_status"] = "pending"
-            else:
-                extended_changes["_approval_status"] = "needs_review"
-
-        audit = AuditLog(
+        create_audit_log(
+            db=db,
             entity_type="Item",
             entity_id=item.id,
             action="CREATE",
-            changes=extended_changes,
-            previous_values={},
+            changes={"name": meta["name"], "quantity": meta["quantity"], "method": "counting_plus"},
+            before_state={},
+            after_state=meta["item_data"],
             source=source,
-            confidence=confidence,
+            # confidence is passed as integer 0-100; approval_status is derived
+            # automatically from confidence inside create_audit_log
+            confidence=int(confidence * 100) if confidence is not None else None,
             user_id=user_id,
-            approval_status=extended_changes.get("_approval_status")
+            commit=False,
         )
-        audit_logs.append(audit)
 
     db.add_all(stocks)
-    db.add_all(audit_logs)
     
     return items
 
