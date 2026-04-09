@@ -106,7 +106,7 @@ redis==7.4.0
     #   rq
 requests==2.33.1
     # via -r requirements.in
-rq==2.6.1
+rq==2.7.0
     # via -r requirements.in
 s3transfer==0.16.0
     # via boto3
