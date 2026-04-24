@@ -183,30 +183,10 @@ async def batch_create_resistors(
                             "confidence": resistor.get("confidence", 0)
                         })
             except Exception as e:
-                # Fallback to individual
-                for resistor in resistor_list:
-                    try:
-                        with db.begin_nested():
-                            # we call the bulk with one item, but do not commit individually
-                            item = _create_resistor_items_bulk(
-                                db,
-                                location_id,
-                                category_id,
-                                [resistor],
-                                temp_image_key,
-                                user.id if hasattr(user, 'id') else None
-                            )[0]
-                            created_items.append({
-                                "id": item.id,
-                                "name": item.name,
-                                "value": value,
-                                "confidence": resistor.get("confidence", 0)
-                            })
-                    except Exception as inner_e:
-                        failed_items.append({
-                            "value": value,
-                            "error": str(inner_e)
-                        })
+                failed_items.append({
+                    "value": value,
+                    "error": str(e)
+                })
         else:
             # Create single item with quantity = count
             try:
