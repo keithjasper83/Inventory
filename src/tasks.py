@@ -328,17 +328,18 @@ def process_item_image(item_id: int, media_id: int):
 
         # 2. Generate Thumbnails
         thumbnails = generate_thumbnails(image_bytes, item_id, media.s3_key)
-        for size, key in thumbnails.items():
-            new_media = Media(
+        new_medias = [
+            Media(
                 item_id=item.id,
                 type="image",
                 s3_key=key,
                 metadata_json={"size": size, "original_id": media.id}
             )
-            db.add(new_media)
-
-        if thumbnails:
-             db.commit()
+            for size, key in thumbnails.items()
+        ]
+        if new_medias:
+            db.add_all(new_medias)
+            db.commit()
 
         # 3. Call AI Services (Async wrapper)
         async def run_ai():
