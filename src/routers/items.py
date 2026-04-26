@@ -245,17 +245,16 @@ async def undo_change(id: int, log_id: int, request: Request, db: Session = Depe
     # Assuming it's a dict of {field: old_value} matching Item columns or Item.data keys.
 
     current_data = dict(item.data)
-    changes_made = {}
+    changes_made = log.previous_values.copy()
+    restricted_keys = {'data', 'id', 'created_at'}
 
-    for key, value in log.previous_values.items():
+    for key, value in changes_made.items():
         # Check if key is a column or data key
-        if hasattr(item, key) and key not in ['data', 'id', 'created_at']:
+        if key not in restricted_keys and hasattr(item, key):
             setattr(item, key, value)
-            changes_made[key] = value
         else:
             # Assume it's in data
             current_data[key] = value
-            changes_made[key] = value
 
     item.data = current_data
 
