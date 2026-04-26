@@ -43,6 +43,64 @@ async def new_item_page(request: Request, db: Session = Depends(get_db), user=De
         context={"request": request, "categories": categories, "locations": locations}
     )
 
+def _save_item_and_upload(
+    db: Session,
+    name: Optional[str],
+    location_id: int,
+    category_id: Optional[int],
+    quantity: int,
+    photo_filename: Optional[str],
+    photo_file,
+    photo_content_type: Optional[str],
+    item_data: dict,
+    user_id: Optional[int]
+):
+    is_draft = name is None
+    slug = None
+    if name:
+        base_slug = name.lower().replace(" ", "-") # Simple slugify
+        slug = f"{base_slug}-{uuid.uuid4().hex[:6]}"
+
+    item = Item(
+        name=name,
+        slug=slug,
+        category_id=category_id,
+        is_draft=is_draft,
+        data=item_data
+    )
+    db.add(item)
+    db.flush()
+
+    media_id = None
+    if photo_filename:
+        key = f"items/{item.id}/{uuid.uuid4()}-{photo_filename}"
+        storage.upload_file(photo_file, key, photo_content_type)
+
+        media = Media(
+            item_id=item.id,
+            type="image",
+            s3_key=key
+        )
+        db.add(media)
+        db.flush()
+        media_id = media.id
+
+    stock = Stock(item_id=item.id, location_id=location_id, quantity=quantity)
+    db.add(stock)
+
+    create_audit_log(
+        db=db,
+        entity_type="Item",
+        entity_id=item.id,
+        action="CREATE",
+        changes={"name": name, "is_draft": is_draft},
+        source="USER",
+        user_id=user_id
+    )
+
+    db.commit()
+    return item.id, item.slug, media_id
+
 @router.post("/items")
 async def create_item(
     request: Request,
@@ -54,15 +112,6 @@ async def create_item(
     db: Session = Depends(get_db),
     user=Depends(require_user)
 ):
-    # Create Item (Draft if name missing, though name or photo is required, photo is enforced by type)
-    is_draft = name is None
-
-    # Generate slug if name provided
-    slug = None
-    if name:
-        base_slug = name.lower().replace(" ", "-") # Simple slugify
-        slug = f"{base_slug}-{uuid.uuid4().hex[:6]}"
-
     # Extract Dynamic Data (prefixed with data_)
     form_data = await request.form()
     item_data = {}
@@ -71,66 +120,42 @@ async def create_item(
             clean_key = key.replace("data_", "")
             item_data[clean_key] = value
 
-    item = Item(
-        name=name,
-        slug=slug,
-        category_id=category_id,
-        is_draft=is_draft,
-        data=item_data
+    user_id = user.id if user else None
+
+    # Offload blocking I/O (DB + S3 upload) to threadpool
+    item_id, item_slug, media_id = await run_in_threadpool(
+        _save_item_and_upload,
+        db,
+        name,
+        location_id,
+        category_id,
+        quantity,
+        photo.filename,
+        photo.file,
+        photo.content_type,
+        item_data,
+        user_id
     )
-    db.add(item)
-    db.flush() # Get ID
-
-    # Handle Photo
-    if photo.filename:
-        key = f"items/{item.id}/{uuid.uuid4()}-{photo.filename}"
-
-        # Non-blocking upload
-        await run_in_threadpool(storage.upload_file, photo.file, key, photo.content_type)
-
-        media = Media(
-            item_id=item.id,
-            type="image",
-            s3_key=key
-        )
-        db.add(media)
-
-    # Handle Stock
-    stock = Stock(item_id=item.id, location_id=location_id, quantity=quantity)
-    db.add(stock)
-
-    # Audit Log
-    create_audit_log(
-        db=db,
-        entity_type="Item",
-        entity_id=item.id,
-        action="CREATE",
-        changes={"name": name, "is_draft": is_draft},
-        source="USER",
-        user_id=user.id if user else None
-    )
-
-    db.commit()
 
     # Trigger AI Jobs (Queued)
-    if 'media' in locals() and media.id:
+    if media_id:
         try:
             q.enqueue(
                 process_item_image,
-                item.id,
-                media.id,
+                item_id,
+                media_id,
                 job_timeout=600,
                 result_ttl=86400,
                 failure_ttl=604800,
                 retry=None
             )
         except Exception:
-            logger.exception(f"Failed to enqueue process_item_image job for item {item.id}")
+            logger.exception(f"Failed to enqueue process_item_image job for item {item_id}")
 
-    if item.slug:
-        return RedirectResponse(url=f"/i/{item.slug}", status_code=status.HTTP_303_SEE_OTHER)
+    if item_slug:
+        return RedirectResponse(url=f"/i/{item_slug}", status_code=status.HTTP_303_SEE_OTHER)
     else:
-        return RedirectResponse(url=f"/p/{item.id}", status_code=status.HTTP_303_SEE_OTHER)
+        return RedirectResponse(url=f"/p/{item_id}", status_code=status.HTTP_303_SEE_OTHER)
 
 @router.get("/i/{slug}", response_class=HTMLResponse)
 async def view_item_slug(slug: str, request: Request, db: Session = Depends(get_db), user=Depends(get_current_user)):
