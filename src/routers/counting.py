@@ -43,7 +43,7 @@ q = Queue(connection=redis_conn)
 
 
 @router.get("/counting-plus", response_class=HTMLResponse)
-async def counting_plus_page(request: Request, db: Session = Depends(get_db), user=Depends(require_user)):
+def counting_plus_page(request: Request, db: Session = Depends(get_db), user=Depends(require_user)):
     """Display the Counting+ upload page."""
     categories = db.query(Category).all()
     locations = db.query(Location).all()
