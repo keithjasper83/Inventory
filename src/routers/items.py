@@ -34,7 +34,7 @@ else:
 q = Queue(connection=redis_conn)
 
 @router.get("/new", response_class=HTMLResponse)
-async def new_item_page(request: Request, db: Session = Depends(get_db), user=Depends(require_user)):
+def new_item_page(request: Request, db: Session = Depends(get_db), user=Depends(require_user)):
     categories = db.query(Category).all()
     locations = db.query(Location).all()
     return templates.TemplateResponse(
