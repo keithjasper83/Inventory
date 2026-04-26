@@ -156,6 +156,18 @@ class ItemService:
             }
         return await asyncio.gather(*(_get_url(m) for m in item.media))
 
+    def get_media_with_urls_sync(self, item: Item, storage_service) -> List[Dict[str, Any]]:
+        """Get media list with presigned URLs synchronously."""
+        media_list = []
+        for m in item.media:
+            media_list.append({
+                "type": m.type,
+                "s3_key": m.s3_key,
+                "url": storage_service.get_presigned_url(m.s3_key),
+                "metadata": m.metadata_json
+            })
+        return media_list
+
 
 class LocationService:
     """Domain service for Location bounded context."""
