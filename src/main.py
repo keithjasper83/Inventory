@@ -75,7 +75,7 @@ app.include_router(admin.router)
 async def home(request: Request, user=Depends(get_current_user), db: Session = Depends(get_db)):
     if not user:
         return RedirectResponse(url="/login")
-    total_items = db.query(Item).count()
+    total_items = await run_in_threadpool(lambda: db.query(Item).count())
     return templates.TemplateResponse(
         request=request,
         name="index.html",
