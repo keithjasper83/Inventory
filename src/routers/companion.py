@@ -60,7 +60,7 @@ async def companion_page(request: Request, session_id: str):
     )
 
 @router.post("/companion/{session_id}/upload")
-async def companion_upload(
+def companion_upload(
     session_id: str,
     photo: UploadFile = File(...),
     db: Session = Depends(get_db)
@@ -96,7 +96,7 @@ async def companion_upload(
 
     # Handle Photo
     s3_key = f"items/{item.id}/{uuid.uuid4()}-{photo.filename}"
-    await run_in_threadpool(storage.upload_file, photo.file, s3_key, photo.content_type)
+    storage.upload_file(photo.file, s3_key, photo.content_type)
 
     media = Media(
         item_id=item.id,
