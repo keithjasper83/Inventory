@@ -18,7 +18,7 @@ from src.config import settings, validate_production_config
 from src.database import get_db
 from src.models import Item
 from src.dependencies import templates, get_current_user
-from src.routers import auth, items, search, locations, categories, admin, health, counting
+from src.routers import auth, items, search, locations, categories, admin, health, counting, companion
 from src.ai import ai_client
 
 logger = logging.getLogger(__name__)
@@ -61,6 +61,7 @@ app.add_middleware(GZipMiddleware, minimum_size=1000)
 app.mount("/static", StaticFiles(directory="src/static"), name="static")
 
 # Routers
+app.include_router(companion.router)
 app.include_router(health.router)
 app.include_router(auth.router)
 app.include_router(counting.router)
