@@ -134,12 +134,16 @@ async def create_item(
 
 @router.get("/i/{slug}", response_class=HTMLResponse)
 async def view_item_slug(slug: str, request: Request, db: Session = Depends(get_db), user=Depends(get_current_user)):
-    item = db.query(Item).options(joinedload(Item.category), joinedload(Item.media)).filter(Item.slug == slug).first()
+    item = await run_in_threadpool(
+        lambda: db.query(Item).options(joinedload(Item.category), joinedload(Item.media)).filter(Item.slug == slug).first()
+    )
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
 
     # Audit Logs
-    audit_logs = db.query(AuditLog).filter(AuditLog.entity_id == item.id).order_by(AuditLog.timestamp.desc()).all()
+    audit_logs = await run_in_threadpool(
+        lambda: db.query(AuditLog).filter(AuditLog.entity_id == item.id).order_by(AuditLog.timestamp.desc()).all()
+    )
 
     # Generate Presigned URLs for media
     service = ItemService(db)
@@ -153,7 +157,9 @@ async def view_item_slug(slug: str, request: Request, db: Session = Depends(get_
 
 @router.get("/p/{id}", response_class=HTMLResponse)
 async def view_item_id(id: int, request: Request, db: Session = Depends(get_db), user=Depends(get_current_user)):
-    item = db.query(Item).options(joinedload(Item.category), joinedload(Item.media)).filter(Item.id == id).first()
+    item = await run_in_threadpool(
+        lambda: db.query(Item).options(joinedload(Item.category), joinedload(Item.media)).filter(Item.id == id).first()
+    )
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
 
@@ -161,7 +167,9 @@ async def view_item_id(id: int, request: Request, db: Session = Depends(get_db),
         return RedirectResponse(url=f"/i/{item.slug}", status_code=status.HTTP_301_MOVED_PERMANENTLY)
 
     # Audit Logs
-    audit_logs = db.query(AuditLog).filter(AuditLog.entity_id == item.id).order_by(AuditLog.timestamp.desc()).all()
+    audit_logs = await run_in_threadpool(
+        lambda: db.query(AuditLog).filter(AuditLog.entity_id == item.id).order_by(AuditLog.timestamp.desc()).all()
+    )
 
     service = ItemService(db)
     media_list = await service.get_media_with_urls(item, storage)
