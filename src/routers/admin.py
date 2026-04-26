@@ -7,18 +7,14 @@ from src.models import SystemSetting
 from src.dependencies import templates, require_user, require_admin
 from src.settings_manager import settings_manager
 from src.config import settings as app_settings
+from fastapi.concurrency import run_in_threadpool
 import redis
 from rq import Queue
 
 router = APIRouter()
 
-@router.get("/admin", response_class=HTMLResponse)
-async def admin_dashboard(request: Request, db: Session = Depends(get_db), user=Depends(require_admin)):
-    # 1. Fetch Settings
-    # We want to show all defaults + overrides
+def fetch_admin_data():
     current_settings = settings_manager.get_all()
-
-    # 2. Fetch Stats
     stats = {}
     try:
         if os.environ.get("TEST_MODE"):
@@ -31,7 +27,6 @@ async def admin_dashboard(request: Request, db: Session = Depends(get_db), user=
         stats['queue_length'] = len(q)
         stats['failed_jobs'] = len(Queue('failed', connection=r))
 
-        # Worker stats could be fetched via Worker.all(connection=r)
         from rq import Worker
         workers = Worker.all(connection=r)
         stats['workers_count'] = len(workers)
@@ -39,6 +34,13 @@ async def admin_dashboard(request: Request, db: Session = Depends(get_db), user=
 
     except Exception as e:
         stats['error'] = str(e)
+
+    return current_settings, stats
+
+@router.get("/admin", response_class=HTMLResponse)
+async def admin_dashboard(request: Request, db: Session = Depends(get_db), user=Depends(require_admin)):
+    # Offload blocking synchronous I/O (database, redis queries)
+    current_settings, stats = await run_in_threadpool(fetch_admin_data)
 
     return templates.TemplateResponse(
         request=request,
