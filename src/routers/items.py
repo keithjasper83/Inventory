@@ -173,7 +173,7 @@ async def view_item_id(id: int, request: Request, db: Session = Depends(get_db),
     )
 
 @router.post("/items/{id}/approve")
-async def approve_changes(id: int, request: Request, db: Session = Depends(get_db), user=Depends(require_reviewer)):
+def approve_changes(id: int, request: Request, db: Session = Depends(get_db), user=Depends(require_reviewer)):
     item = db.query(Item).filter(Item.id == id).first()
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
@@ -204,7 +204,7 @@ async def approve_changes(id: int, request: Request, db: Session = Depends(get_d
     return RedirectResponse(url=f"/p/{id}", status_code=status.HTTP_303_SEE_OTHER)
 
 @router.post("/items/{id}/reject")
-async def reject_changes(id: int, request: Request, db: Session = Depends(get_db), user=Depends(require_reviewer)):
+def reject_changes(id: int, request: Request, db: Session = Depends(get_db), user=Depends(require_reviewer)):
     item = db.query(Item).filter(Item.id == id).first()
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
@@ -227,7 +227,7 @@ async def reject_changes(id: int, request: Request, db: Session = Depends(get_db
 
     return RedirectResponse(url=f"/p/{id}", status_code=status.HTTP_303_SEE_OTHER)
 @router.post("/items/{id}/audit/{log_id}/undo")
-async def undo_change(id: int, log_id: int, request: Request, db: Session = Depends(get_db), user=Depends(require_reviewer)):
+def undo_change(id: int, log_id: int, request: Request, db: Session = Depends(get_db), user=Depends(require_reviewer)):
     item = db.query(Item).filter(Item.id == id).first()
     log = db.query(AuditLog).filter(AuditLog.id == log_id, AuditLog.entity_id == id).first()
 
