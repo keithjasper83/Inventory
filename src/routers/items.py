@@ -152,7 +152,7 @@ async def view_item_slug(slug: str, request: Request, db: Session = Depends(get_
     )
 
 @router.get("/p/{id}", response_class=HTMLResponse)
-async def view_item_id(id: int, request: Request, db: Session = Depends(get_db), user=Depends(get_current_user)):
+def view_item_id(id: int, request: Request, db: Session = Depends(get_db), user=Depends(get_current_user)):
     item = db.query(Item).options(joinedload(Item.category), joinedload(Item.media)).filter(Item.id == id).first()
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
@@ -164,7 +164,7 @@ async def view_item_id(id: int, request: Request, db: Session = Depends(get_db),
     audit_logs = db.query(AuditLog).filter(AuditLog.entity_id == item.id).order_by(AuditLog.timestamp.desc()).all()
 
     service = ItemService(db)
-    media_list = await service.get_media_with_urls(item, storage)
+    media_list = service.get_media_with_urls_sync(item, storage)
 
     return templates.TemplateResponse(
         request=request,
