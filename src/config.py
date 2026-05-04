@@ -67,7 +67,7 @@ def validate_production_config():
     
     if errors:
         raise ValueError(
-            f"Production configuration validation failed:\n" + 
+            "Production configuration validation failed:\n" +
             "\n".join(f"  - {error}" for error in errors)
         )
 

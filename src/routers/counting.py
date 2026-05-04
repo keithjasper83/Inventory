@@ -9,26 +9,25 @@ This module provides endpoints for bulk resistor processing:
 - Batch add to inventory
 """
 
-import os
 import uuid
 from typing import List, Optional, Dict, Any
-from fastapi import APIRouter, Depends, Request, Form, UploadFile, File, HTTPException, status
-from fastapi.responses import RedirectResponse, HTMLResponse, JSONResponse
+from fastapi import APIRouter, Depends, Request, UploadFile, File, HTTPException
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 import redis
 from rq import Queue
 import logging
 
-logger = logging.getLogger(__name__)
-
 from src.database import get_db
-from src.models import Item, Media, Category, Location, Stock, AuditLog
-from src.dependencies import templates, require_user, get_current_user
+from src.models import Item, Category, Location, Stock
+from src.dependencies import templates, require_user
 from src.storage import storage
 from src.ai import ai_client
 from src.config import settings
-from src.tasks import create_audit_log, validate_ai_output
+from src.tasks import create_audit_log
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -80,7 +79,7 @@ async def analyze_resistors(
     # Call AI service
     try:
         result = await ai_client.count_resistors_bulk(image_bytes)
-    except ValueError as e:
+    except ValueError:
         # Jarvis not configured, return mock data for testing
         result = {
             "resistors": [
@@ -182,7 +181,7 @@ async def batch_create_resistors(
                             "value": value,
                             "confidence": resistor.get("confidence", 0)
                         })
-            except Exception as e:
+            except Exception:
                 # Fallback to individual
                 for resistor in resistor_list:
                     try:
@@ -239,7 +238,7 @@ async def batch_create_resistors(
     try:
         if temp_image_key:
             await run_in_threadpool(storage.delete_file, temp_image_key)
-    except:
+    except Exception:
         pass  # Don't fail if cleanup fails
     
     return JSONResponse(content={
@@ -334,19 +333,19 @@ def _create_resistor_items_bulk(
     db.flush()  # Get IDs for all items at once
     
     stocks = []
-    audit_logs = []
+    audit_logs = []  # noqa: F841
     
     for item, meta in zip(items, item_metadata):
         # Copy image from temp if available
         if temp_image_key:
             try:
                 # Copy temp image to permanent location
-                new_key = f"items/{item.id}/counting-plus-{uuid.uuid4()}.jpg"
+                new_key = f"items/{item.id}/counting-plus-{uuid.uuid4()}.jpg"  # noqa: F841
                 # Note: This would need storage.copy_file implementation
                 # For now, we'll skip copying to avoid complexity
                 # In production, implement: storage.copy_file(temp_image_key, new_key)
                 pass
-            except:
+            except Exception:
                 pass
 
         # Create stock entry

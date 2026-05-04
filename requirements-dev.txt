@@ -36,6 +36,8 @@ redis==7.4.0
     # via
     #   -c requirements.txt
     #   fakeredis
+ruff==0.15.12
+    # via -r requirements-dev.in
 sortedcontainers==2.4.0
     # via fakeredis
 typing-extensions==4.15.0

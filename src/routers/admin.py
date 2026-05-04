@@ -3,8 +3,7 @@ from fastapi import APIRouter, Depends, Request, Form, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 from src.database import get_db
-from src.models import SystemSetting
-from src.dependencies import templates, require_user, require_admin
+from src.dependencies import templates, require_admin
 from src.settings_manager import settings_manager
 from src.config import settings as app_settings
 import redis

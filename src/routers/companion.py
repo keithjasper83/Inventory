@@ -1,16 +1,15 @@
 import uuid
 import json
-import os
 import logging
-from fastapi import APIRouter, UploadFile, File, HTTPException, Request, Depends, status
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi import APIRouter, UploadFile, File, HTTPException, Request, Depends
+from fastapi.responses import HTMLResponse
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 import redis
 from rq import Queue
 
 from src.database import get_db
-from src.models import Item, Media, AuditLog, Stock
+from src.models import Item, Media, Stock
 from src.storage import storage
 from src.tasks import process_item_image, create_audit_log
 from src.config import settings

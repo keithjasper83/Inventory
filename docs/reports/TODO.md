@@ -141,7 +141,7 @@ This document tracks outstanding tasks, known issues, and improvements needed be
   - Fix type hint errors
   - Add to CI/CD pipeline
 
-- [ ] **Add linting with ruff or flake8**
+- [x] **Add linting with ruff or flake8**
   - Choose linter (ruff recommended for speed)
   - Create configuration file
   - Fix linting errors

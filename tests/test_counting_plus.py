@@ -9,9 +9,9 @@ Tests bulk resistor counting functionality including:
 """
 
 import pytest
-from unittest.mock import Mock, AsyncMock, patch
+from unittest.mock import Mock
 from src.routers.counting import _create_resistor_item
-from src.tasks import validate_ai_output, create_audit_log
+from src.tasks import validate_ai_output
 
 
 class TestResistorValidation:

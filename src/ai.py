@@ -17,7 +17,7 @@ class AIClient:
             async with httpx.AsyncClient() as client:
                 resp = await client.get(f"{self.base_url}{self.health_path}", timeout=2.0)
                 return resp.status_code == 200
-        except:
+        except Exception:
             return False
 
     async def ocr_image(self, image_bytes: bytes) -> Dict[str, Any]:
@@ -128,7 +128,7 @@ class AIClient:
                     results = resp.json().get('results', [])
                     if results:
                         return results[0] # Return first result
-            except:
+            except Exception:
                 pass
         return None
 
