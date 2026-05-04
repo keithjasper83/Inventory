@@ -1,0 +1,209 @@
+<<<<<<< SEARCH
+import os
+import uuid
+from typing import List, Optional, Dict, Any
+=======
+import os
+import uuid
+from dataclasses import dataclass
+from typing import List, Optional, Dict, Any
+>>>>>>> REPLACE
+<<<<<<< SEARCH
+def _create_resistor_items_bulk(
+    db: Session,
+    location_id: int,
+    category_id: Optional[int],
+    resistors: List[Dict[str, Any]],
+    temp_image_key: Optional[str],
+    user_id: Optional[int],
+    quantities: Optional[List[int]] = None
+) -> List[Item]:
+=======
+@dataclass
+class ResistorCreationContext:
+    location_id: int
+    category_id: Optional[int]
+    temp_image_key: Optional[str]
+    user_id: Optional[int]
+
+def _create_resistor_items_bulk(
+    db: Session,
+    context: ResistorCreationContext,
+    resistors: List[Dict[str, Any]],
+    quantities: Optional[List[int]] = None
+) -> List[Item]:
+>>>>>>> REPLACE
+<<<<<<< SEARCH
+        # Create stock entry
+        stock = Stock(
+            item_id=item.id,
+            location_id=location_id,
+            quantity=meta["quantity"]
+        )
+=======
+        # Create stock entry
+        stock = Stock(
+            item_id=item.id,
+            location_id=context.location_id,
+            quantity=meta["quantity"]
+        )
+>>>>>>> REPLACE
+<<<<<<< SEARCH
+        # Copy image from temp if available
+        if temp_image_key:
+            try:
+                # Copy temp image to permanent location
+                new_key = f"items/{item.id}/counting-plus-{uuid.uuid4()}.jpg"
+=======
+        # Copy image from temp if available
+        if context.temp_image_key:
+            try:
+                # Copy temp image to permanent location
+                new_key = f"items/{item.id}/counting-plus-{uuid.uuid4()}.jpg"
+>>>>>>> REPLACE
+<<<<<<< SEARCH
+        create_audit_log(
+            db=db,
+            entity_type="Item",
+            entity_id=item.id,
+            action="CREATE",
+            changes={"name": meta["name"], "quantity": meta["quantity"], "method": "counting_plus"},
+            before_state={},
+            after_state=meta["item_data"],
+            source=source,
+            # confidence is passed as integer 0-100; approval_status is derived
+            # automatically from confidence inside create_audit_log
+            confidence=int(confidence * 100) if confidence is not None else None,
+            user_id=user_id,
+            commit=False,
+        )
+=======
+        create_audit_log(
+            db=db,
+            entity_type="Item",
+            entity_id=item.id,
+            action="CREATE",
+            changes={"name": meta["name"], "quantity": meta["quantity"], "method": "counting_plus"},
+            before_state={},
+            after_state=meta["item_data"],
+            source=source,
+            # confidence is passed as integer 0-100; approval_status is derived
+            # automatically from confidence inside create_audit_log
+            confidence=int(confidence * 100) if confidence is not None else None,
+            user_id=context.user_id,
+            commit=False,
+        )
+>>>>>>> REPLACE
+<<<<<<< SEARCH
+def _create_resistor_item(
+    db: Session,
+    location_id: int,
+    category_id: Optional[int],
+    resistor: Dict[str, Any],
+    temp_image_key: Optional[str],
+    user_id: Optional[int],
+    quantity: int = 1
+) -> Item:
+    """
+    Create a single item from resistor data.
+    """
+    items = _create_resistor_items_bulk(
+        db, location_id, category_id, [resistor], temp_image_key, user_id, quantities=[quantity]
+    )
+=======
+def _create_resistor_item(
+    db: Session,
+    context: ResistorCreationContext,
+    resistor: Dict[str, Any],
+    quantity: int = 1
+) -> Item:
+    """
+    Create a single item from resistor data.
+    """
+    items = _create_resistor_items_bulk(
+        db, context, [resistor], quantities=[quantity]
+    )
+>>>>>>> REPLACE
+<<<<<<< SEARCH
+    # Create items grouped by value
+    for value, resistor_list in grouped_by_value.items():
+        if value == "unknown":
+            try:
+                # we don't commit until the end so if something fails, the entire request fails OR we can use nested transactions
+                with db.begin_nested():
+                    items = _create_resistor_items_bulk(
+                        db,
+                        location_id,
+                        category_id,
+                        resistor_list,
+                        temp_image_key,
+                        user.id if hasattr(user, 'id') else None
+                    )
+=======
+    context = ResistorCreationContext(
+        location_id=location_id,
+        category_id=category_id,
+        temp_image_key=temp_image_key,
+        user_id=user.id if hasattr(user, 'id') else None
+    )
+
+    # Create items grouped by value
+    for value, resistor_list in grouped_by_value.items():
+        if value == "unknown":
+            try:
+                # we don't commit until the end so if something fails, the entire request fails OR we can use nested transactions
+                with db.begin_nested():
+                    items = _create_resistor_items_bulk(
+                        db,
+                        context,
+                        resistor_list,
+                    )
+>>>>>>> REPLACE
+<<<<<<< SEARCH
+                for resistor in resistor_list:
+                    try:
+                        with db.begin_nested():
+                            # we call the bulk with one item, but do not commit individually
+                            item = _create_resistor_items_bulk(
+                                db,
+                                location_id,
+                                category_id,
+                                [resistor],
+                                temp_image_key,
+                                user.id if hasattr(user, 'id') else None
+                            )[0]
+=======
+                for resistor in resistor_list:
+                    try:
+                        with db.begin_nested():
+                            # we call the bulk with one item, but do not commit individually
+                            item = _create_resistor_items_bulk(
+                                db,
+                                context,
+                                [resistor],
+                            )[0]
+>>>>>>> REPLACE
+<<<<<<< SEARCH
+        else:
+            # Create single item with quantity = count
+            try:
+                item = _create_resistor_item(
+                    db,
+                    location_id,
+                    category_id,
+                    resistor_list[0],  # Use first as template
+                    temp_image_key,
+                    user.id if hasattr(user, 'id') else None,
+                    quantity=len(resistor_list)
+                )
+=======
+        else:
+            # Create single item with quantity = count
+            try:
+                item = _create_resistor_item(
+                    db,
+                    context,
+                    resistor_list[0],  # Use first as template
+                    quantity=len(resistor_list)
+                )
+>>>>>>> REPLACE

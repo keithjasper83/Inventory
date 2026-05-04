@@ -10,7 +10,7 @@ Tests bulk resistor counting functionality including:
 
 import pytest
 from unittest.mock import Mock, AsyncMock, patch
-from src.routers.counting import _create_resistor_item
+from src.routers.counting import _create_resistor_item, ResistorCreationContext
 from src.tasks import validate_ai_output, create_audit_log
 
 
@@ -86,13 +86,16 @@ class TestResistorItemCreation:
             "confidence": 0.98
         }
         
-        item = _create_resistor_item(
-            db=self.db,
+        context = ResistorCreationContext(
             location_id=1,
             category_id=2,
-            resistor=resistor,
             temp_image_key="temp/test.jpg",
-            user_id=1,
+            user_id=1
+        )
+        item = _create_resistor_item(
+            db=self.db,
+            context=context,
+            resistor=resistor,
             quantity=1
         )
         
@@ -112,13 +115,16 @@ class TestResistorItemCreation:
             "confidence": 0.3
         }
         
-        item = _create_resistor_item(
-            db=self.db,
+        context = ResistorCreationContext(
             location_id=1,
             category_id=None,
-            resistor=resistor,
             temp_image_key=None,
-            user_id=1,
+            user_id=1
+        )
+        item = _create_resistor_item(
+            db=self.db,
+            context=context,
+            resistor=resistor,
             quantity=1
         )
         
@@ -136,13 +142,16 @@ class TestResistorItemCreation:
             "confidence": 0.98
         }
         
-        item = _create_resistor_item(
-            db=self.db,
+        context = ResistorCreationContext(
             location_id=1,
             category_id=2,
-            resistor=resistor,
             temp_image_key=None,
-            user_id=1,
+            user_id=1
+        )
+        item = _create_resistor_item(
+            db=self.db,
+            context=context,
+            resistor=resistor,
             quantity=47  # Bulk quantity
         )
         

@@ -11,6 +11,7 @@ This module provides endpoints for bulk resistor processing:
 
 import os
 import uuid
+from dataclasses import dataclass
 from typing import List, Optional, Dict, Any
 from fastapi import APIRouter, Depends, Request, Form, UploadFile, File, HTTPException, status
 from fastapi.responses import RedirectResponse, HTMLResponse, JSONResponse
@@ -161,6 +162,13 @@ async def batch_create_resistors(
     created_items = []
     failed_items = []
     
+    context = ResistorCreationContext(
+        location_id=location_id,
+        category_id=category_id,
+        temp_image_key=temp_image_key,
+        user_id=user.id if hasattr(user, 'id') else None
+    )
+
     # Create items grouped by value
     for value, resistor_list in grouped_by_value.items():
         if value == "unknown":
@@ -169,11 +177,8 @@ async def batch_create_resistors(
                 with db.begin_nested():
                     items = _create_resistor_items_bulk(
                         db,
-                        location_id,
-                        category_id,
+                        context,
                         resistor_list,
-                        temp_image_key,
-                        user.id if hasattr(user, 'id') else None
                     )
                     for item, resistor in zip(items, resistor_list):
                         created_items.append({
@@ -190,11 +195,8 @@ async def batch_create_resistors(
                             # we call the bulk with one item, but do not commit individually
                             item = _create_resistor_items_bulk(
                                 db,
-                                location_id,
-                                category_id,
+                                context,
                                 [resistor],
-                                temp_image_key,
-                                user.id if hasattr(user, 'id') else None
                             )[0]
                             created_items.append({
                                 "id": item.id,
@@ -212,11 +214,8 @@ async def batch_create_resistors(
             try:
                 item = _create_resistor_item(
                     db,
-                    location_id,
-                    category_id,
+                    context,
                     resistor_list[0],  # Use first as template
-                    temp_image_key,
-                    user.id if hasattr(user, 'id') else None,
                     quantity=len(resistor_list)
                 )
                 created_items.append({
@@ -252,13 +251,17 @@ async def batch_create_resistors(
 
 
 
+@dataclass
+class ResistorCreationContext:
+    location_id: int
+    category_id: Optional[int]
+    temp_image_key: Optional[str]
+    user_id: Optional[int]
+
 def _create_resistor_items_bulk(
     db: Session,
-    location_id: int,
-    category_id: Optional[int],
+    context: ResistorCreationContext,
     resistors: List[Dict[str, Any]],
-    temp_image_key: Optional[str],
-    user_id: Optional[int],
     quantities: Optional[List[int]] = None
 ) -> List[Item]:
     """
@@ -316,7 +319,7 @@ def _create_resistor_items_bulk(
         item = Item(
             name=name,
             slug=slug,
-            category_id=category_id,
+            category_id=context.category_id,
             is_draft=is_draft,
             data=item_data
         )
@@ -337,8 +340,8 @@ def _create_resistor_items_bulk(
     audit_logs = []
     
     for item, meta in zip(items, item_metadata):
-        # Copy image from temp if available
-        if temp_image_key:
+                # Copy image from temp if available
+        if context.temp_image_key:
             try:
                 # Copy temp image to permanent location
                 new_key = f"items/{item.id}/counting-plus-{uuid.uuid4()}.jpg"
@@ -349,10 +352,10 @@ def _create_resistor_items_bulk(
             except:
                 pass
 
-        # Create stock entry
+                # Create stock entry
         stock = Stock(
             item_id=item.id,
-            location_id=location_id,
+            location_id=context.location_id,
             quantity=meta["quantity"]
         )
         stocks.append(stock)
@@ -372,7 +375,7 @@ def _create_resistor_items_bulk(
             # confidence is passed as integer 0-100; approval_status is derived
             # automatically from confidence inside create_audit_log
             confidence=int(confidence * 100) if confidence is not None else None,
-            user_id=user_id,
+            user_id=context.user_id,
             commit=False,
         )
 
@@ -383,18 +386,15 @@ def _create_resistor_items_bulk(
 
 def _create_resistor_item(
     db: Session,
-    location_id: int,
-    category_id: Optional[int],
+    context: ResistorCreationContext,
     resistor: Dict[str, Any],
-    temp_image_key: Optional[str],
-    user_id: Optional[int],
     quantity: int = 1
 ) -> Item:
     """
     Create a single item from resistor data.
     """
     items = _create_resistor_items_bulk(
-        db, location_id, category_id, [resistor], temp_image_key, user_id, quantities=[quantity]
+        db, context, [resistor], quantities=[quantity]
     )
     # The original function committed inside the loop, so for backwards compatibility of
     # usages outside of bulk processing, we still commit here if it's called individually!

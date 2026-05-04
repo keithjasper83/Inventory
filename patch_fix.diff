@@ -1,0 +1,15 @@
+<<<<<<< SEARCH
+        context = ResistorCreationContext(
+        location_id=location_id,
+        category_id=category_id,
+        temp_image_key=temp_image_key,
+        user_id=user.id if hasattr(user, 'id') else None
+    )
+=======
+    context = ResistorCreationContext(
+        location_id=location_id,
+        category_id=category_id,
+        temp_image_key=temp_image_key,
+        user_id=user.id if hasattr(user, 'id') else None
+    )
+>>>>>>> REPLACE

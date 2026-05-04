@@ -1,0 +1,77 @@
+<<<<<<< SEARCH
+from src.routers.counting import _create_resistor_item
+=======
+from src.routers.counting import _create_resistor_item, ResistorCreationContext
+>>>>>>> REPLACE
+<<<<<<< SEARCH
+        item = _create_resistor_item(
+            db=self.db,
+            location_id=1,
+            category_id=2,
+            resistor=resistor,
+            temp_image_key="temp/test.jpg",
+            user_id=1,
+            quantity=1
+        )
+=======
+        context = ResistorCreationContext(
+            location_id=1,
+            category_id=2,
+            temp_image_key="temp/test.jpg",
+            user_id=1
+        )
+        item = _create_resistor_item(
+            db=self.db,
+            context=context,
+            resistor=resistor,
+            quantity=1
+        )
+>>>>>>> REPLACE
+<<<<<<< SEARCH
+        item = _create_resistor_item(
+            db=self.db,
+            location_id=1,
+            category_id=None,
+            resistor=resistor,
+            temp_image_key=None,
+            user_id=1,
+            quantity=1
+        )
+=======
+        context = ResistorCreationContext(
+            location_id=1,
+            category_id=None,
+            temp_image_key=None,
+            user_id=1
+        )
+        item = _create_resistor_item(
+            db=self.db,
+            context=context,
+            resistor=resistor,
+            quantity=1
+        )
+>>>>>>> REPLACE
+<<<<<<< SEARCH
+        item = _create_resistor_item(
+            db=self.db,
+            location_id=1,
+            category_id=2,
+            resistor=resistor,
+            temp_image_key=None,
+            user_id=1,
+            quantity=47  # Bulk quantity
+        )
+=======
+        context = ResistorCreationContext(
+            location_id=1,
+            category_id=2,
+            temp_image_key=None,
+            user_id=1
+        )
+        item = _create_resistor_item(
+            db=self.db,
+            context=context,
+            resistor=resistor,
+            quantity=47  # Bulk quantity
+        )
+>>>>>>> REPLACE
