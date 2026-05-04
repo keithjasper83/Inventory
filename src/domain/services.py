@@ -6,8 +6,19 @@ naturally fit within a single entity.
 import asyncio
 from typing import Optional, List, Dict, Any
 import uuid
+from dataclasses import dataclass
 from sqlalchemy.orm import Session
 from fastapi.concurrency import run_in_threadpool
+
+
+@dataclass
+class ItemCreateDTO:
+    """DTO for creating a new item."""
+    name: Optional[str]
+    location_id: int
+    category_id: Optional[int]
+    quantity: int
+    data: Dict[str, Any]
 
 from src.models import Item, Category, Location, Stock, Media, AuditLog
 from src.tasks import create_audit_log
@@ -27,14 +38,7 @@ class ItemService:
         self.media_repo = MediaRepository(db)
         self.audit_repo = AuditLogRepository(db)
     
-    def create_item(
-        self,
-        name: Optional[str],
-        location_id: int,
-        category_id: Optional[int],
-        quantity: int,
-        data: Dict[str, Any]
-    ) -> Item:
+    def create_item(self, dto: ItemCreateDTO) -> Item:
         """Create a new inventory item.
         
         Business rules:
@@ -43,25 +47,25 @@ class ItemService:
         - Stock entry is created automatically
         - Audit log is created
         """
-        is_draft = name is None
+        is_draft = dto.name is None
         slug = None
         
-        if name:
-            base_slug = name.lower().replace(" ", "-")
+        if dto.name:
+            base_slug = dto.name.lower().replace(" ", "-")
             slug = f"{base_slug}-{uuid.uuid4().hex[:6]}"
         
         item = Item(
-            name=name,
+            name=dto.name,
             slug=slug,
-            category_id=category_id,
+            category_id=dto.category_id,
             is_draft=is_draft,
-            data=data
+            data=dto.data
         )
         
         item = self.item_repo.create(item)
         
         # Create stock entry
-        stock = Stock(item_id=item.id, location_id=location_id, quantity=quantity)
+        stock = Stock(item_id=item.id, location_id=dto.location_id, quantity=dto.quantity)
         self.stock_repo.create(stock)
         
         # Create audit log
@@ -70,7 +74,7 @@ class ItemService:
             entity_type="Item",
             entity_id=item.id,
             action="CREATE",
-            changes={"name": name, "is_draft": is_draft},
+            changes={"name": dto.name, "is_draft": is_draft},
             source="USER"
         )
         
