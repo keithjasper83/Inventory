@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch, AsyncMock
 from src.tasks import (
     retry_with_backoff,
     create_audit_log,
+    AuditLogParams,
     validate_ai_output,
     process_item_image,
     scrape_item_task,
@@ -98,7 +99,7 @@ class TestAuditLogging:
         mock_db = MagicMock()
         mock_session_cls.return_value = mock_db
         
-        audit = create_audit_log(
+        audit = create_audit_log(AuditLogParams(
             db=mock_db,
             entity_type="Item",
             entity_id=1,
@@ -106,7 +107,7 @@ class TestAuditLogging:
             changes={"name": "new_name"},
             source="USER",
             user_id=1
-        )
+        ))
         
         assert audit.entity_type == "Item"
         assert audit.entity_id == 1
@@ -124,7 +125,7 @@ class TestAuditLogging:
         before = {"name": "old_name", "value": 10}
         after = {"name": "new_name", "value": 20}
         
-        audit = create_audit_log(
+        audit = create_audit_log(AuditLogParams(
             db=mock_db,
             entity_type="Item",
             entity_id=1,
@@ -134,7 +135,7 @@ class TestAuditLogging:
             confidence=85,
             before_state=before,
             after_state=after
-        )
+        ))
         
         assert audit.changes["before"] == before
         assert audit.changes["after"] == after
@@ -151,7 +152,7 @@ class TestAuditLogging:
         mock_settings.AI_MANUAL_REVIEW_THRESHOLD = 0.80
         
         # High confidence - auto approved
-        audit_high = create_audit_log(
+        audit_high = create_audit_log(AuditLogParams(
             db=mock_db,
             entity_type="Item",
             entity_id=1,
@@ -159,11 +160,11 @@ class TestAuditLogging:
             changes={},
             source="AI_SCRAPED",
             confidence=98
-        )
+        ))
         assert audit_high.approval_status == "auto_approved"
         
         # Medium confidence - pending
-        audit_medium = create_audit_log(
+        audit_medium = create_audit_log(AuditLogParams(
             db=mock_db,
             entity_type="Item",
             entity_id=2,
@@ -171,11 +172,11 @@ class TestAuditLogging:
             changes={},
             source="AI_GENERATED",
             confidence=85
-        )
+        ))
         assert audit_medium.approval_status == "pending"
         
         # Low confidence - needs review
-        audit_low = create_audit_log(
+        audit_low = create_audit_log(AuditLogParams(
             db=mock_db,
             entity_type="Item",
             entity_id=3,
@@ -183,7 +184,7 @@ class TestAuditLogging:
             changes={},
             source="AI_GENERATED",
             confidence=70
-        )
+        ))
         assert audit_low.approval_status == "needs_review"
 
 

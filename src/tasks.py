@@ -1,4 +1,5 @@
 import time
+from dataclasses import dataclass
 from typing import Any, Dict, Optional
 from sqlalchemy.orm import Session
 from src.database import SessionLocal
@@ -87,78 +88,82 @@ def validate_ai_output(value: Any, field_name: str, expected_type: Optional[type
     
     return True
 
-def create_audit_log(
-    db: Session,
-    entity_type: str,
-    entity_id: int,
-    action: str,
-    changes: Dict[str, Any],
-    source: str = "USER",
-    confidence: Optional[int] = None,
-    user_id: Optional[int] = None,
-    approval_status: Optional[str] = None,
-    before_state: Optional[Dict[str, Any]] = None,
-    after_state: Optional[Dict[str, Any]] = None,
+@dataclass
+class AuditLogParams:
+    db: Session
+    entity_type: str
+    entity_id: int
+    action: str
+    changes: Dict[str, Any]
+    source: str = "USER"
+    confidence: Optional[int] = None
+    user_id: Optional[int] = None
+    approval_status: Optional[str] = None
+    before_state: Optional[Dict[str, Any]] = None
+    after_state: Optional[Dict[str, Any]] = None
     commit: bool = True
-) -> AuditLog:
+
+def create_audit_log(params: AuditLogParams) -> AuditLog:
     """
     Create a comprehensive audit log entry.
     
     Args:
-        db: Database session
-        entity_type: Type of entity (e.g., "Item", "Category")
-        entity_id: ID of the entity
-        action: Action performed (CREATE, UPDATE, DELETE, SUGGEST, APPROVE, REJECT)
-        changes: Dictionary of changes made
-        source: Source of change (USER, AI_GENERATED, AI_SCRAPED)
-        confidence: AI confidence score as integer 0–100
-        user_id: ID of user who initiated the action
-        approval_status: Explicit approval status; derived from confidence when omitted
-                         for AI sources (auto_approved / pending / needs_review)
-        before_state: State before changes
-        after_state: State after changes
-        commit: When True (default) the session is committed and refreshed after adding
-                the entry.  Pass False when the caller is already inside a transaction
-                and wants to control when the commit happens (add/flush only).
+        params: AuditLogParams containing:
+            db: Database session
+            entity_type: Type of entity (e.g., "Item", "Category")
+            entity_id: ID of the entity
+            action: Action performed (CREATE, UPDATE, DELETE, SUGGEST, APPROVE, REJECT)
+            changes: Dictionary of changes made
+            source: Source of change (USER, AI_GENERATED, AI_SCRAPED)
+            confidence: AI confidence score as integer 0–100
+            user_id: ID of user who initiated the action
+            approval_status: Explicit approval status; derived from confidence when omitted
+                             for AI sources (auto_approved / pending / needs_review)
+            before_state: State before changes
+            after_state: State after changes
+            commit: When True (default) the session is committed and refreshed after adding
+                    the entry.  Pass False when the caller is already inside a transaction
+                    and wants to control when the commit happens (add/flush only).
         
     Returns:
         Created AuditLog entry
     """
     # Store before/after states in the changes dict for compatibility with existing model
     extended_changes = {
-        **changes,
-        "before": before_state or {},
-        "after": after_state or {},
+        **params.changes,
+        "before": params.before_state or {},
+        "after": params.after_state or {},
     }
     
     # Determine approval status based on confidence, assuming confidence is an int 0-100
-    if approval_status is None and source in ["AI_GENERATED", "AI_SCRAPED"] and confidence is not None:
-        if confidence >= settings.AI_AUTO_APPLY_CONFIDENCE * 100:
+    approval_status = params.approval_status
+    if approval_status is None and params.source in ["AI_GENERATED", "AI_SCRAPED"] and params.confidence is not None:
+        if params.confidence >= settings.AI_AUTO_APPLY_CONFIDENCE * 100:
             approval_status = "auto_approved"
-        elif confidence >= settings.AI_MANUAL_REVIEW_THRESHOLD * 100:
+        elif params.confidence >= settings.AI_MANUAL_REVIEW_THRESHOLD * 100:
             approval_status = "pending"
         else:
             approval_status = "needs_review"
     
     # Use previous_values for before state (existing field)
     audit = AuditLog(
-        entity_type=entity_type,
-        entity_id=entity_id,
-        action=action,
+        entity_type=params.entity_type,
+        entity_id=params.entity_id,
+        action=params.action,
         changes=extended_changes,
-        previous_values=before_state or {},
-        source=source,
-        confidence=confidence,
-        user_id=user_id,
+        previous_values=params.before_state or {},
+        source=params.source,
+        confidence=params.confidence,
+        user_id=params.user_id,
         approval_status=approval_status
     )
     
-    db.add(audit)
-    if commit:
-        db.commit()
-        db.refresh(audit)
+    params.db.add(audit)
+    if params.commit:
+        params.db.commit()
+        params.db.refresh(audit)
     else:
-        db.flush()
+        params.db.flush()
     
     return audit
 
@@ -240,7 +245,7 @@ def scrape_item_task(item_id: int):
 
             item.pending_changes = updated_pending
 
-            create_audit_log(
+            create_audit_log(AuditLogParams(
                 db=db,
                 entity_type="Item",
                 entity_id=item.id,
@@ -248,7 +253,7 @@ def scrape_item_task(item_id: int):
                 changes={"scraped_url": url, "docs": len(downloaded_docs)},
                 source="AI_SCRAPED",
                 confidence=100,
-            )
+            ))
             db.commit()
             logger.info(f"Successfully scraped item {item_id} from {url}")
 
@@ -371,7 +376,7 @@ def process_item_image(item_id: int, media_id: int):
              changes['ocr_text'] = "pending"
 
              # Audit
-             create_audit_log(
+             create_audit_log(AuditLogParams(
                 db=db,
                 entity_type="Item",
                 entity_id=item.id,
@@ -380,7 +385,7 @@ def process_item_image(item_id: int, media_id: int):
                 source="AI_GENERATED",
                 confidence=int(ocr_confidence * 100),
                 commit=False,
-             )
+             ))
 
         # Process Resistor
         if isinstance(resistor_result, dict) and resistor_result.get('is_resistor'):
@@ -395,7 +400,7 @@ def process_item_image(item_id: int, media_id: int):
 
             source = "AI_SCRAPED" if confidence >= 0.95 else "AI_GENERATED"
 
-            create_audit_log(
+            create_audit_log(AuditLogParams(
                 db=db,
                 entity_type="Item",
                 entity_id=item.id,
@@ -404,7 +409,7 @@ def process_item_image(item_id: int, media_id: int):
                 source=source,
                 confidence=int(confidence * 100),
                 commit=False,
-            )
+            ))
 
         db.commit()
 
@@ -461,7 +466,7 @@ def process_item_image(item_id: int, media_id: int):
 
                 item.pending_changes = pending
 
-                create_audit_log(
+                create_audit_log(AuditLogParams(
                     db=db,
                     entity_type="Item",
                     entity_id=item.id,
@@ -470,7 +475,7 @@ def process_item_image(item_id: int, media_id: int):
                     source="AI_SCRAPED",
                     confidence=100,
                     commit=False,
-                )
+                ))
                 db.commit()
 
     except Exception as e:
