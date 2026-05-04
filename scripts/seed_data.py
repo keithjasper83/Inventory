@@ -7,6 +7,7 @@ import os
 import getpass
 import sys
 
+
 def seed_data():
     db = SessionLocal()
     try:
@@ -34,35 +35,37 @@ def seed_data():
         if not db.query(User).filter(User.username == "admin").first():
             # Get admin password from environment or prompt
             admin_password = os.environ.get("ADMIN_PASSWORD")
-            
+
             if not admin_password:
                 # Interactive mode - prompt for password
                 if sys.stdin.isatty():
                     print("Please set a secure admin password.")
                     admin_password = getpass.getpass("Admin password: ")
                     confirm_password = getpass.getpass("Confirm password: ")
-                    
+
                     if admin_password != confirm_password:
                         print("ERROR: Passwords do not match!")
                         sys.exit(1)
-                    
+
                     if len(admin_password) < 8:
                         print("ERROR: Password must be at least 8 characters!")
                         sys.exit(1)
                 else:
                     # Non-interactive mode (Docker) - require ADMIN_PASSWORD
                     print("ERROR: ADMIN_PASSWORD environment variable must be set!")
-                    print("Set ADMIN_PASSWORD=your-secure-password in your environment.")
+                    print(
+                        "Set ADMIN_PASSWORD=your-secure-password in your environment."
+                    )
                     sys.exit(1)
             else:
                 # Validate password from environment
                 if len(admin_password) < 8:
                     print("ERROR: ADMIN_PASSWORD must be at least 8 characters!")
                     sys.exit(1)
-            
+
             user = User(
                 username="admin",
-                password_hash=auth_service.get_password_hash(admin_password)
+                password_hash=auth_service.get_password_hash(admin_password),
             )
             db.add(user)
             print("✓ Admin user created")
@@ -76,6 +79,7 @@ def seed_data():
         sys.exit(1)
     finally:
         db.close()
+
 
 if __name__ == "__main__":
     seed_data()

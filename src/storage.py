@@ -6,14 +6,15 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 class StorageService:
     def __init__(self):
         self.s3_client = boto3.client(
-            's3',
+            "s3",
             endpoint_url=settings.S3_ENDPOINT_URL,
             aws_access_key_id=settings.S3_ACCESS_KEY,
             aws_secret_access_key=settings.S3_SECRET_KEY,
-            region_name=settings.S3_REGION_NAME
+            region_name=settings.S3_REGION_NAME,
         )
         self.bucket_media = settings.BUCKET_MEDIA
         self.bucket_docs = settings.BUCKET_DOCS
@@ -27,14 +28,13 @@ class StorageService:
                 # Bucket does not exist, create it
                 self.s3_client.create_bucket(Bucket=bucket)
 
-    def upload_file(self, file_obj, key: str, content_type: str, bucket_type: str = "media"):
+    def upload_file(
+        self, file_obj, key: str, content_type: str, bucket_type: str = "media"
+    ):
         """Upload a file-like object to S3."""
         bucket = self.bucket_media if bucket_type == "media" else self.bucket_docs
         self.s3_client.upload_fileobj(
-            file_obj,
-            bucket,
-            key,
-            ExtraArgs={'ContentType': content_type}
+            file_obj, bucket, key, ExtraArgs={"ContentType": content_type}
         )
         return key
 
@@ -46,13 +46,14 @@ class StorageService:
         bucket = self.bucket_media if bucket_type == "media" else self.bucket_docs
         try:
             response = self.s3_client.generate_presigned_url(
-                'get_object',
-                Params={'Bucket': bucket, 'Key': key},
-                ExpiresIn=int(expiration)
+                "get_object",
+                Params={"Bucket": bucket, "Key": key},
+                ExpiresIn=int(expiration),
             )
             return response
         except ClientError as e:
             logger.error(f"Error generating presigned URL: {e}")
             return None
+
 
 storage = StorageService()

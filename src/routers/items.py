@@ -1,7 +1,16 @@
 import os
 import asyncio
 from typing import List, Optional
-from fastapi import APIRouter, Depends, Request, Form, UploadFile, File, HTTPException, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    Request,
+    Form,
+    UploadFile,
+    File,
+    HTTPException,
+    status,
+)
 from fastapi.responses import RedirectResponse, HTMLResponse
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session, joinedload
@@ -27,21 +36,26 @@ router = APIRouter()
 # Redis Connection
 if settings.TEST_MODE:
     import fakeredis
+
     redis_conn = fakeredis.FakeRedis()
 else:
     redis_conn = redis.from_url(settings.REDIS_URL)
 
 q = Queue(connection=redis_conn)
 
+
 @router.get("/new", response_class=HTMLResponse)
-async def new_item_page(request: Request, db: Session = Depends(get_db), user=Depends(require_user)):
+async def new_item_page(
+    request: Request, db: Session = Depends(get_db), user=Depends(require_user)
+):
     categories = db.query(Category).all()
     locations = db.query(Location).all()
     return templates.TemplateResponse(
         request=request,
         name="item_new.html",
-        context={"request": request, "categories": categories, "locations": locations}
+        context={"request": request, "categories": categories, "locations": locations},
     )
+
 
 @router.post("/items")
 async def create_item(
@@ -52,7 +66,7 @@ async def create_item(
     quantity: int = Form(1),
     photo: UploadFile = File(...),
     db: Session = Depends(get_db),
-    user=Depends(require_user)
+    user=Depends(require_user),
 ):
     # Create Item (Draft if name missing, though name or photo is required, photo is enforced by type)
     is_draft = name is None
@@ -60,7 +74,7 @@ async def create_item(
     # Generate slug if name provided
     slug = None
     if name:
-        base_slug = name.lower().replace(" ", "-") # Simple slugify
+        base_slug = name.lower().replace(" ", "-")  # Simple slugify
         slug = f"{base_slug}-{uuid.uuid4().hex[:6]}"
 
     # Extract Dynamic Data (prefixed with data_)
@@ -72,27 +86,21 @@ async def create_item(
             item_data[clean_key] = value
 
     item = Item(
-        name=name,
-        slug=slug,
-        category_id=category_id,
-        is_draft=is_draft,
-        data=item_data
+        name=name, slug=slug, category_id=category_id, is_draft=is_draft, data=item_data
     )
     db.add(item)
-    db.flush() # Get ID
+    db.flush()  # Get ID
 
     # Handle Photo
     if photo.filename:
         key = f"items/{item.id}/{uuid.uuid4()}-{photo.filename}"
 
         # Non-blocking upload
-        await run_in_threadpool(storage.upload_file, photo.file, key, photo.content_type)
-
-        media = Media(
-            item_id=item.id,
-            type="image",
-            s3_key=key
+        await run_in_threadpool(
+            storage.upload_file, photo.file, key, photo.content_type
         )
+
+        media = Media(item_id=item.id, type="image", s3_key=key)
         db.add(media)
 
     # Handle Stock
@@ -107,13 +115,13 @@ async def create_item(
         action="CREATE",
         changes={"name": name, "is_draft": is_draft},
         source="USER",
-        user_id=user.id if user else None
+        user_id=user.id if user else None,
     )
 
     db.commit()
 
     # Trigger AI Jobs (Queued)
-    if 'media' in locals() and media.id:
+    if "media" in locals() and media.id:
         try:
             q.enqueue(
                 process_item_image,
@@ -122,24 +130,46 @@ async def create_item(
                 job_timeout=600,
                 result_ttl=86400,
                 failure_ttl=604800,
-                retry=None
+                retry=None,
             )
         except Exception:
-            logger.exception(f"Failed to enqueue process_item_image job for item {item.id}")
+            logger.exception(
+                f"Failed to enqueue process_item_image job for item {item.id}"
+            )
 
     if item.slug:
-        return RedirectResponse(url=f"/i/{item.slug}", status_code=status.HTTP_303_SEE_OTHER)
+        return RedirectResponse(
+            url=f"/i/{item.slug}", status_code=status.HTTP_303_SEE_OTHER
+        )
     else:
-        return RedirectResponse(url=f"/p/{item.id}", status_code=status.HTTP_303_SEE_OTHER)
+        return RedirectResponse(
+            url=f"/p/{item.id}", status_code=status.HTTP_303_SEE_OTHER
+        )
+
 
 @router.get("/i/{slug}", response_class=HTMLResponse)
-async def view_item_slug(slug: str, request: Request, db: Session = Depends(get_db), user=Depends(get_current_user)):
-    item = db.query(Item).options(joinedload(Item.category), joinedload(Item.media)).filter(Item.slug == slug).first()
+async def view_item_slug(
+    slug: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    item = (
+        db.query(Item)
+        .options(joinedload(Item.category), joinedload(Item.media))
+        .filter(Item.slug == slug)
+        .first()
+    )
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
 
     # Audit Logs
-    audit_logs = db.query(AuditLog).filter(AuditLog.entity_id == item.id).order_by(AuditLog.timestamp.desc()).all()
+    audit_logs = (
+        db.query(AuditLog)
+        .filter(AuditLog.entity_id == item.id)
+        .order_by(AuditLog.timestamp.desc())
+        .all()
+    )
 
     # Generate Presigned URLs for media
     service = ItemService(db)
@@ -148,20 +178,44 @@ async def view_item_slug(slug: str, request: Request, db: Session = Depends(get_
     return templates.TemplateResponse(
         request=request,
         name="item_detail.html",
-        context={"request": request, "item": item, "user": user, "media_list": media_list, "audit_logs": audit_logs}
+        context={
+            "request": request,
+            "item": item,
+            "user": user,
+            "media_list": media_list,
+            "audit_logs": audit_logs,
+        },
     )
 
+
 @router.get("/p/{id}", response_class=HTMLResponse)
-async def view_item_id(id: int, request: Request, db: Session = Depends(get_db), user=Depends(get_current_user)):
-    item = db.query(Item).options(joinedload(Item.category), joinedload(Item.media)).filter(Item.id == id).first()
+async def view_item_id(
+    id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    item = (
+        db.query(Item)
+        .options(joinedload(Item.category), joinedload(Item.media))
+        .filter(Item.id == id)
+        .first()
+    )
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
 
     if item.slug:
-        return RedirectResponse(url=f"/i/{item.slug}", status_code=status.HTTP_301_MOVED_PERMANENTLY)
+        return RedirectResponse(
+            url=f"/i/{item.slug}", status_code=status.HTTP_301_MOVED_PERMANENTLY
+        )
 
     # Audit Logs
-    audit_logs = db.query(AuditLog).filter(AuditLog.entity_id == item.id).order_by(AuditLog.timestamp.desc()).all()
+    audit_logs = (
+        db.query(AuditLog)
+        .filter(AuditLog.entity_id == item.id)
+        .order_by(AuditLog.timestamp.desc())
+        .all()
+    )
 
     service = ItemService(db)
     media_list = await service.get_media_with_urls(item, storage)
@@ -169,11 +223,23 @@ async def view_item_id(id: int, request: Request, db: Session = Depends(get_db),
     return templates.TemplateResponse(
         request=request,
         name="item_detail.html",
-        context={"request": request, "item": item, "user": user, "media_list": media_list, "audit_logs": audit_logs}
+        context={
+            "request": request,
+            "item": item,
+            "user": user,
+            "media_list": media_list,
+            "audit_logs": audit_logs,
+        },
     )
 
+
 @router.post("/items/{id}/approve")
-async def approve_changes(id: int, request: Request, db: Session = Depends(get_db), user=Depends(require_reviewer)):
+async def approve_changes(
+    id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    user=Depends(require_reviewer),
+):
     item = db.query(Item).filter(Item.id == id).first()
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
@@ -197,14 +263,20 @@ async def approve_changes(id: int, request: Request, db: Session = Depends(get_d
             after_state=data,
             source="USER",
             user_id=user.id,
-            approval_status="approved"
+            approval_status="approved",
         )
         db.commit()
 
     return RedirectResponse(url=f"/p/{id}", status_code=status.HTTP_303_SEE_OTHER)
 
+
 @router.post("/items/{id}/reject")
-async def reject_changes(id: int, request: Request, db: Session = Depends(get_db), user=Depends(require_reviewer)):
+async def reject_changes(
+    id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    user=Depends(require_reviewer),
+):
     item = db.query(Item).filter(Item.id == id).first()
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
@@ -221,15 +293,27 @@ async def reject_changes(id: int, request: Request, db: Session = Depends(get_db
             changes={"rejected_changes": rejected_changes},
             source="USER",
             user_id=user.id,
-            approval_status="rejected"
+            approval_status="rejected",
         )
         db.commit()
 
     return RedirectResponse(url=f"/p/{id}", status_code=status.HTTP_303_SEE_OTHER)
+
+
 @router.post("/items/{id}/audit/{log_id}/undo")
-async def undo_change(id: int, log_id: int, request: Request, db: Session = Depends(get_db), user=Depends(require_reviewer)):
+async def undo_change(
+    id: int,
+    log_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    user=Depends(require_reviewer),
+):
     item = db.query(Item).filter(Item.id == id).first()
-    log = db.query(AuditLog).filter(AuditLog.id == log_id, AuditLog.entity_id == id).first()
+    log = (
+        db.query(AuditLog)
+        .filter(AuditLog.id == log_id, AuditLog.entity_id == id)
+        .first()
+    )
 
     if not item or not log:
         raise HTTPException(status_code=404, detail="Item or Log not found")
@@ -238,7 +322,9 @@ async def undo_change(id: int, log_id: int, request: Request, db: Session = Depe
         raise HTTPException(status_code=400, detail="Change already undone")
 
     if not log.previous_values:
-        raise HTTPException(status_code=400, detail="Cannot undo: No previous values recorded")
+        raise HTTPException(
+            status_code=400, detail="Cannot undo: No previous values recorded"
+        )
 
     # Apply previous values
     # We need to be careful about what 'previous_values' contains.
@@ -249,7 +335,7 @@ async def undo_change(id: int, log_id: int, request: Request, db: Session = Depe
 
     for key, value in log.previous_values.items():
         # Check if key is a column or data key
-        if hasattr(item, key) and key not in ['data', 'id', 'created_at']:
+        if hasattr(item, key) and key not in ["data", "id", "created_at"]:
             setattr(item, key, value)
             changes_made[key] = value
         else:
@@ -268,10 +354,10 @@ async def undo_change(id: int, log_id: int, request: Request, db: Session = Depe
         entity_type="Item",
         entity_id=item.id,
         action="UNDO",
-        changes=changes_made, # What we reverted TO
+        changes=changes_made,  # What we reverted TO
         source="USER",
         confidence=100,
-        user_id=user.id if user else None
+        user_id=user.id if user else None,
     )
     db.commit()
 

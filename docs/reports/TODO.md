@@ -147,7 +147,7 @@ This document tracks outstanding tasks, known issues, and improvements needed be
   - Fix linting errors
   - Add to CI/CD pipeline
 
-- [ ] **Code formatting with black**
+- [x] **Code formatting with black**
   - Run black on all Python files
   - Add black configuration to pyproject.toml
   - Document code style in CONTRIBUTING.md

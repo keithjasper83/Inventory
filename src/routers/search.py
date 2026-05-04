@@ -12,15 +12,32 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+
 @router.get("/s/{query}", response_class=HTMLResponse)
-async def search_slug(query: str, request: Request, db: Session = Depends(get_db), user=Depends(get_current_user)):
+async def search_slug(
+    query: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_user),
+):
     return await search_handler(query, request, db, user)
 
+
 @router.get("/search", response_class=HTMLResponse)
-async def search_query(request: Request, q: str = "", db: Session = Depends(get_db), user=Depends(get_current_user)):
+async def search_query(
+    request: Request,
+    q: str = "",
+    db: Session = Depends(get_db),
+    user=Depends(get_current_user),
+):
     if not q:
-        return templates.TemplateResponse(request=request, name="search.html", context={"request": request, "items": [], "query": ""})
+        return templates.TemplateResponse(
+            request=request,
+            name="search.html",
+            context={"request": request, "items": [], "query": ""},
+        )
     return await search_handler(q, request, db, user)
+
 
 async def search_handler(query: str, request: Request, db: Session, user):
     # 1. Deterministic Resolution (Exact Slug)
@@ -43,9 +60,13 @@ async def search_handler(query: str, request: Request, db: Session, user):
     ai_confidence = 0.0
 
     if not items:
-         intent = await ai_client.resolve_url_intent(query)
-         if intent and intent.get('action') == 'redirect' and intent.get('confidence', 0) > 0.8:
-             return RedirectResponse(url=intent['url'])
+        intent = await ai_client.resolve_url_intent(query)
+        if (
+            intent
+            and intent.get("action") == "redirect"
+            and intent.get("confidence", 0) > 0.8
+        ):
+            return RedirectResponse(url=intent["url"])
 
     return templates.TemplateResponse(
         request=request,
@@ -56,6 +77,6 @@ async def search_handler(query: str, request: Request, db: Session, user):
             "query": query,
             "user": user,
             "ai_selected": ai_selected,
-            "ai_confidence": ai_confidence
-        }
+            "ai_confidence": ai_confidence,
+        },
     )

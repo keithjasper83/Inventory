@@ -6,7 +6,8 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-listen = ['default']
+listen = ["default"]
+
 
 def start_worker():
     redis_url = settings.REDIS_URL
@@ -16,6 +17,7 @@ def start_worker():
         worker = Worker(list(map(Queue, listen)))
         worker.work()
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     logger.info("Starting RQ Worker...")
     start_worker()

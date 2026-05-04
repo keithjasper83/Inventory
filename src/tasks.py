@@ -19,21 +19,23 @@ logger = logging.getLogger(__name__)
 # Constants for retry and AI validation
 MAX_RETRIES = 3
 
+
 def retry_with_backoff(max_retries=3, initial_backoff=1.0, backoff_multiplier=2.0):
     """
     Decorator for retrying functions with exponential backoff.
-    
+
     Args:
         max_retries: Maximum number of retry attempts (total attempts)
         initial_backoff: Initial backoff time in seconds
         backoff_multiplier: Multiplier for backoff time after each retry
     """
+
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
             backoff = initial_backoff
             last_exception = None
-            
+
             for attempt in range(max_retries):
                 try:
                     return func(*args, **kwargs)
@@ -45,12 +47,14 @@ def retry_with_backoff(max_retries=3, initial_backoff=1.0, backoff_multiplier=2.
                     else:
                         # Final attempt failed, raise the exception
                         raise
-            
+
             # Should never reach here, but just in case
             raise last_exception
-        
+
         return wrapper
+
     return decorator
+
 
 def get_db():
     db = SessionLocal()
@@ -59,33 +63,37 @@ def get_db():
     finally:
         db.close()
 
-def validate_ai_output(value: Any, field_name: str, expected_type: Optional[type] = None) -> bool:
+
+def validate_ai_output(
+    value: Any, field_name: str, expected_type: Optional[type] = None
+) -> bool:
     """
     Validate AI output before applying to database.
-    
+
     Args:
         value: The value to validate
         field_name: Name of the field being validated
         expected_type: Expected Python type
-        
+
     Returns:
         True if valid, False otherwise
     """
     # Null checks
     if value is None:
         return False
-    
+
     # Empty value checks
     if isinstance(value, str) and not value.strip():
         return False
     if isinstance(value, (list, dict)) and not value:
         return False
-    
+
     # Type validation
     if expected_type and not isinstance(value, expected_type):
         return False
-    
+
     return True
+
 
 def create_audit_log(
     db: Session,
@@ -99,11 +107,11 @@ def create_audit_log(
     approval_status: Optional[str] = None,
     before_state: Optional[Dict[str, Any]] = None,
     after_state: Optional[Dict[str, Any]] = None,
-    commit: bool = True
+    commit: bool = True,
 ) -> AuditLog:
     """
     Create a comprehensive audit log entry.
-    
+
     Args:
         db: Database session
         entity_type: Type of entity (e.g., "Item", "Category")
@@ -120,7 +128,7 @@ def create_audit_log(
         commit: When True (default) the session is committed and refreshed after adding
                 the entry.  Pass False when the caller is already inside a transaction
                 and wants to control when the commit happens (add/flush only).
-        
+
     Returns:
         Created AuditLog entry
     """
@@ -130,16 +138,20 @@ def create_audit_log(
         "before": before_state or {},
         "after": after_state or {},
     }
-    
+
     # Determine approval status based on confidence, assuming confidence is an int 0-100
-    if approval_status is None and source in ["AI_GENERATED", "AI_SCRAPED"] and confidence is not None:
+    if (
+        approval_status is None
+        and source in ["AI_GENERATED", "AI_SCRAPED"]
+        and confidence is not None
+    ):
         if confidence >= settings.AI_AUTO_APPLY_CONFIDENCE * 100:
             approval_status = "auto_approved"
         elif confidence >= settings.AI_MANUAL_REVIEW_THRESHOLD * 100:
             approval_status = "pending"
         else:
             approval_status = "needs_review"
-    
+
     # Use previous_values for before state (existing field)
     audit = AuditLog(
         entity_type=entity_type,
@@ -150,28 +162,29 @@ def create_audit_log(
         source=source,
         confidence=confidence,
         user_id=user_id,
-        approval_status=approval_status
+        approval_status=approval_status,
     )
-    
+
     db.add(audit)
     if commit:
         db.commit()
         db.refresh(audit)
     else:
         db.flush()
-    
+
     return audit
+
 
 def scrape_item_task(item_id: int):
     """
     Background task to scrape item information from web sources.
-    
+
     This task is triggered when AI suggests high-confidence product information
     that can be automatically retrieved from manufacturer or distributor websites.
-    
+
     The actual scraping logic is part of process_item_image for now, but this
     provides a separate entry point for manual triggering or future enhancements.
-    
+
     Args:
         item_id: ID of the item to scrape information for
     """
@@ -181,17 +194,19 @@ def scrape_item_task(item_id: int):
         if not item:
             logger.error(f"Item {item_id} not found for scraping.")
             return
-        
+
         # Determine search query: prefer ocr_text if available, else name
         search_query = None
         pending = item.pending_changes or {}
-        if pending.get('ocr_text') and pending['ocr_text'] != "pending":
-            search_query = pending['ocr_text']
+        if pending.get("ocr_text") and pending["ocr_text"] != "pending":
+            search_query = pending["ocr_text"]
         elif item.name:
             search_query = item.name
 
         if not search_query:
-            logger.warning(f"Item {item_id} has no suitable search query (name or ocr_text) for scraping.")
+            logger.warning(
+                f"Item {item_id} has no suitable search query (name or ocr_text) for scraping."
+            )
             return
 
         async def run_scrape():
@@ -206,9 +221,10 @@ def scrape_item_task(item_id: int):
         if scrape_result:
             # Save scraped URL
             updated_pending = dict(item.pending_changes or {})
-            updated_pending['source_url'] = url
+            updated_pending["source_url"] = url
 
             import requests
+
             downloaded_docs = []
 
             # Helper to download and save
@@ -218,24 +234,30 @@ def scrape_item_task(item_id: int):
                     resp = requests.get(doc_url, timeout=timeout)
                     if resp.status_code == 200:
                         import uuid
+
                         key = f"items/{item.id}/docs/{prefix}-{uuid.uuid4()}.pdf"
-                        storage.upload_file(io.BytesIO(resp.content), key, "application/pdf", bucket_type="docs")
+                        storage.upload_file(
+                            io.BytesIO(resp.content),
+                            key,
+                            "application/pdf",
+                            bucket_type="docs",
+                        )
 
                         media_entry = Media(
                             item_id=item.id,
                             type="pdf",
                             s3_key=key,
-                            metadata_json={"source_url": doc_url}
+                            metadata_json={"source_url": doc_url},
                         )
                         db.add(media_entry)
                         downloaded_docs.append(key)
                 except Exception as e:
                     logger.error(f"Error downloading {doc_url}: {e}")
 
-            if scrape_result.get('pdf_snapshot'):
-                save_doc(scrape_result['pdf_snapshot'], "snapshot")
+            if scrape_result.get("pdf_snapshot"):
+                save_doc(scrape_result["pdf_snapshot"], "snapshot")
 
-            for sheet in scrape_result.get('datasheets', []):
+            for sheet in scrape_result.get("datasheets", []):
                 save_doc(sheet, "datasheet")
 
             item.pending_changes = updated_pending
@@ -259,6 +281,7 @@ def scrape_item_task(item_id: int):
     finally:
         db.close()
 
+
 def generate_thumbnails(image_bytes: bytes, item_id: int, original_filename: str):
     """
     Generate medium and thumbnail versions of the image and upload them.
@@ -267,25 +290,25 @@ def generate_thumbnails(image_bytes: bytes, item_id: int, original_filename: str
     try:
         img = Image.open(io.BytesIO(image_bytes))
         original_format = img.format
-        content_type = f"image/{original_format.lower()}" if original_format else "image/jpeg"
+        content_type = (
+            f"image/{original_format.lower()}" if original_format else "image/jpeg"
+        )
 
         derived = {}
 
         # Sizes
-        sizes = {
-            "medium": (800, 800),
-            "thumbnail": (200, 200)
-        }
+        sizes = {"medium": (800, 800), "thumbnail": (200, 200)}
 
         import uuid
-        base_name = original_filename.rsplit('/', 1)[-1]
+
+        base_name = original_filename.rsplit("/", 1)[-1]
 
         for size_name, dimensions in sizes.items():
             img_copy = img.copy()
             img_copy.thumbnail(dimensions)
 
             out_io = io.BytesIO()
-            img_copy.save(out_io, format=original_format or 'JPEG')
+            img_copy.save(out_io, format=original_format or "JPEG")
             out_io.seek(0)
 
             key = f"items/{item_id}/{size_name}-{uuid.uuid4()}-{base_name}"
@@ -296,6 +319,7 @@ def generate_thumbnails(image_bytes: bytes, item_id: int, original_filename: str
     except Exception as e:
         logger.error(f"Error generating thumbnails: {e}")
         return {}
+
 
 def process_item_image(item_id: int, media_id: int):
     """
@@ -319,7 +343,9 @@ def process_item_image(item_id: int, media_id: int):
         # 1. Download Image
         try:
             file_stream = io.BytesIO()
-            storage.s3_client.download_fileobj(storage.bucket_media, media.s3_key, file_stream)
+            storage.s3_client.download_fileobj(
+                storage.bucket_media, media.s3_key, file_stream
+            )
             file_stream.seek(0)
             image_bytes = file_stream.read()
         except Exception as e:
@@ -333,12 +359,12 @@ def process_item_image(item_id: int, media_id: int):
                 item_id=item.id,
                 type="image",
                 s3_key=key,
-                metadata_json={"size": size, "original_id": media.id}
+                metadata_json={"size": size, "original_id": media.id},
             )
             db.add(new_media)
 
         if thumbnails:
-             db.commit()
+            db.commit()
 
         # 3. Call AI Services (Async wrapper)
         async def run_ai():
@@ -354,24 +380,24 @@ def process_item_image(item_id: int, media_id: int):
         ocr_confidence = 0.0
 
         # Process OCR
-        if isinstance(ocr_result, dict) and ocr_result.get('text'):
-             ocr_text = ocr_result['text']
-             ocr_confidence = ocr_result.get('confidence', 0.0)
+        if isinstance(ocr_result, dict) and ocr_result.get("text"):
+            ocr_text = ocr_result["text"]
+            ocr_confidence = ocr_result.get("confidence", 0.0)
 
-             # If item is draft and has no name, use OCR text
-             if item.is_draft and not item.name:
-                 changes['name'] = ocr_text[:100] # Truncate
-                 item.name = changes['name']
-                 item.slug = item.name.lower().replace(" ", "-") # Update slug
+            # If item is draft and has no name, use OCR text
+            if item.is_draft and not item.name:
+                changes["name"] = ocr_text[:100]  # Truncate
+                item.name = changes["name"]
+                item.slug = item.name.lower().replace(" ", "-")  # Update slug
 
-             # Store full OCR in pending_changes
-             pending = dict(item.pending_changes or {})
-             pending['ocr_text'] = ocr_text
-             item.pending_changes = pending
-             changes['ocr_text'] = "pending"
+            # Store full OCR in pending_changes
+            pending = dict(item.pending_changes or {})
+            pending["ocr_text"] = ocr_text
+            item.pending_changes = pending
+            changes["ocr_text"] = "pending"
 
-             # Audit
-             create_audit_log(
+            # Audit
+            create_audit_log(
                 db=db,
                 entity_type="Item",
                 entity_id=item.id,
@@ -380,17 +406,17 @@ def process_item_image(item_id: int, media_id: int):
                 source="AI_GENERATED",
                 confidence=int(ocr_confidence * 100),
                 commit=False,
-             )
+            )
 
         # Process Resistor
-        if isinstance(resistor_result, dict) and resistor_result.get('is_resistor'):
-            confidence = resistor_result.get('confidence', 0.0)
-            resistance = resistor_result.get('resistance')
-            tolerance = resistor_result.get('tolerance')
+        if isinstance(resistor_result, dict) and resistor_result.get("is_resistor"):
+            confidence = resistor_result.get("confidence", 0.0)
+            resistance = resistor_result.get("resistance")
+            tolerance = resistor_result.get("tolerance")
 
             pending = dict(item.pending_changes or {})
-            pending['resistance'] = resistance
-            pending['tolerance'] = tolerance
+            pending["resistance"] = resistance
+            pending["tolerance"] = tolerance
             item.pending_changes = pending
 
             source = "AI_SCRAPED" if confidence >= 0.95 else "AI_GENERATED"
@@ -412,6 +438,7 @@ def process_item_image(item_id: int, media_id: int):
         threshold = settings_manager.get("ai_confidence_threshold", 0.95)
 
         if ocr_text and ocr_confidence >= threshold:
+
             async def run_scrape():
                 url = await ai_client.find_product_url(ocr_text)
                 if url:
@@ -424,7 +451,7 @@ def process_item_image(item_id: int, media_id: int):
             if scrape_result:
                 # Save scraped URL
                 pending = dict(item.pending_changes or {})
-                pending['source_url'] = url
+                pending["source_url"] = url
 
                 # Handle Datasheets/PDFs
                 # Assuming scrape_result structure: {'datasheets': ['url1'], 'pdf_snapshot': 'url2'}
@@ -439,24 +466,30 @@ def process_item_image(item_id: int, media_id: int):
                         resp = requests.get(doc_url, timeout=timeout)
                         if resp.status_code == 200:
                             import uuid
+
                             key = f"items/{item.id}/docs/{prefix}-{uuid.uuid4()}.pdf"
-                            storage.upload_file(io.BytesIO(resp.content), key, "application/pdf", bucket_type="docs")
+                            storage.upload_file(
+                                io.BytesIO(resp.content),
+                                key,
+                                "application/pdf",
+                                bucket_type="docs",
+                            )
 
                             media_entry = Media(
                                 item_id=item.id,
                                 type="pdf",
                                 s3_key=key,
-                                metadata_json={"source_url": doc_url}
+                                metadata_json={"source_url": doc_url},
                             )
                             db.add(media_entry)
                             downloaded_docs.append(key)
                     except Exception as e:
                         logger.error(f"Error downloading {doc_url}: {e}")
 
-                if scrape_result.get('pdf_snapshot'):
-                    save_doc(scrape_result['pdf_snapshot'], "snapshot")
+                if scrape_result.get("pdf_snapshot"):
+                    save_doc(scrape_result["pdf_snapshot"], "snapshot")
 
-                for sheet in scrape_result.get('datasheets', []):
+                for sheet in scrape_result.get("datasheets", []):
                     save_doc(sheet, "datasheet")
 
                 item.pending_changes = pending

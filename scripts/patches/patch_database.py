@@ -20,7 +20,11 @@ else:
         pool_pre_ping=True
     )
 """
-content = re.sub(r"import os\n# Check test mode[\s\S]*?pool_pre_ping=True\n    \)", replacement, content)
+content = re.sub(
+    r"import os\n# Check test mode[\s\S]*?pool_pre_ping=True\n    \)",
+    replacement,
+    content,
+)
 
 with open("src/database.py", "w") as f:
     f.write(content)

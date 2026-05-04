@@ -5,6 +5,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 class AIClient:
     def __init__(self):
         self.base_url = settings.JARVIS_BASE_URL
@@ -15,7 +16,9 @@ class AIClient:
             return False
         try:
             async with httpx.AsyncClient() as client:
-                resp = await client.get(f"{self.base_url}{self.health_path}", timeout=2.0)
+                resp = await client.get(
+                    f"{self.base_url}{self.health_path}", timeout=2.0
+                )
                 return resp.status_code == 200
         except:
             return False
@@ -26,26 +29,30 @@ class AIClient:
             raise ValueError("Jarvis URL not configured")
 
         async with httpx.AsyncClient() as client:
-            files = {'file': image_bytes}
-            resp = await client.post(f"{self.base_url}/api/ocr", files=files, timeout=30.0)
+            files = {"file": image_bytes}
+            resp = await client.post(
+                f"{self.base_url}/api/ocr", files=files, timeout=30.0
+            )
             resp.raise_for_status()
             return resp.json()
 
     async def identify_resistor(self, image_bytes: bytes) -> Dict[str, Any]:
         """Identify resistor from image."""
         if not self.base_url:
-             raise ValueError("Jarvis URL not configured")
+            raise ValueError("Jarvis URL not configured")
 
         async with httpx.AsyncClient() as client:
-            files = {'file': image_bytes}
-            resp = await client.post(f"{self.base_url}/api/resistor", files=files, timeout=30.0)
+            files = {"file": image_bytes}
+            resp = await client.post(
+                f"{self.base_url}/api/resistor", files=files, timeout=30.0
+            )
             resp.raise_for_status()
             return resp.json()
 
     async def count_resistors_bulk(self, image_bytes: bytes) -> Dict[str, Any]:
         """
         Count and identify multiple resistors from a single image.
-        
+
         Expected to return:
         {
             "resistors": [
@@ -71,43 +78,51 @@ class AIClient:
             raise ValueError("Jarvis URL not configured")
 
         async with httpx.AsyncClient() as client:
-            files = {'file': image_bytes}
+            files = {"file": image_bytes}
             resp = await client.post(
-                f"{self.base_url}/api/resistor/bulk-count", 
-                files=files, 
-                timeout=120.0  # Longer timeout for processing many resistors
+                f"{self.base_url}/api/resistor/bulk-count",
+                files=files,
+                timeout=120.0,  # Longer timeout for processing many resistors
             )
             resp.raise_for_status()
             return resp.json()
 
-    async def get_embeddings(self, text: Optional[str] = None, image_bytes: Optional[bytes] = None) -> List[float]:
+    async def get_embeddings(
+        self, text: Optional[str] = None, image_bytes: Optional[bytes] = None
+    ) -> List[float]:
         """Get embeddings for text or image."""
         if not self.base_url:
-             raise ValueError("Jarvis URL not configured")
+            raise ValueError("Jarvis URL not configured")
 
         async with httpx.AsyncClient() as client:
             if text:
-                data = {'text': text}
-                resp = await client.post(f"{self.base_url}/api/embeddings", json=data, timeout=10.0)
+                data = {"text": text}
+                resp = await client.post(
+                    f"{self.base_url}/api/embeddings", json=data, timeout=10.0
+                )
             elif image_bytes:
-                files = {'file': image_bytes}
-                resp = await client.post(f"{self.base_url}/api/embeddings", files=files, timeout=10.0)
+                files = {"file": image_bytes}
+                resp = await client.post(
+                    f"{self.base_url}/api/embeddings", files=files, timeout=10.0
+                )
             else:
                 return []
 
             resp.raise_for_status()
-            return resp.json().get('embedding', [])
+            return resp.json().get("embedding", [])
 
     async def resolve_url_intent(self, url: str) -> Dict[str, Any]:
         """Resolve URL intent synchronously."""
         if not self.base_url:
-             return {"intent": "unknown", "confidence": 0.0}
+            return {"intent": "unknown", "confidence": 0.0}
 
         async with httpx.AsyncClient() as client:
-            data = {'url': url}
+            data = {"url": url}
             # Catch-all URL resolver: calls Jarvis synchronously
             try:
-                resp = await client.post(f"{self.base_url}/api/resolve-url", json=data, timeout=5.0)
+                resp = await client.post(
+                    f"{self.base_url}/api/resolve-url", json=data, timeout=5.0
+                )
                 if resp.status_code == 200:
                     return resp.json()
             except Exception as e:
@@ -122,12 +137,14 @@ class AIClient:
 
         async with httpx.AsyncClient() as client:
             try:
-                data = {'query': query}
-                resp = await client.post(f"{self.base_url}/api/search", json=data, timeout=30.0)
+                data = {"query": query}
+                resp = await client.post(
+                    f"{self.base_url}/api/search", json=data, timeout=30.0
+                )
                 if resp.status_code == 200:
-                    results = resp.json().get('results', [])
+                    results = resp.json().get("results", [])
                     if results:
-                        return results[0] # Return first result
+                        return results[0]  # Return first result
             except:
                 pass
         return None
@@ -135,12 +152,15 @@ class AIClient:
     async def scrape_url(self, url: str) -> Dict[str, Any]:
         """Scrape a URL for datasheets and info."""
         if not self.base_url:
-             raise ValueError("Jarvis URL not configured")
+            raise ValueError("Jarvis URL not configured")
 
         async with httpx.AsyncClient() as client:
-            data = {'url': url}
-            resp = await client.post(f"{self.base_url}/api/scrape", json=data, timeout=60.0)
+            data = {"url": url}
+            resp = await client.post(
+                f"{self.base_url}/api/scrape", json=data, timeout=60.0
+            )
             resp.raise_for_status()
             return resp.json()
+
 
 ai_client = AIClient()
