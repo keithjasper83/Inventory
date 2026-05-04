@@ -9,6 +9,9 @@ from src.storage import storage
 from src.settings_manager import settings_manager
 import asyncio
 import io
+import urllib.parse
+import socket
+import ipaddress
 from PIL import Image
 from rq import get_current_job
 from functools import wraps
@@ -18,6 +21,37 @@ logger = logging.getLogger(__name__)
 
 # Constants for retry and AI validation
 MAX_RETRIES = 3
+
+def is_safe_url(url: str) -> bool:
+    try:
+        parsed = urllib.parse.urlparse(url)
+        if parsed.scheme not in ('http', 'https'):
+            return False
+
+        hostname = parsed.hostname
+        if not hostname:
+            return False
+
+        try:
+            # Resolve to all IPs (IPv4 and IPv6)
+            addr_info = socket.getaddrinfo(hostname, None)
+        except socket.gaierror:
+            return False
+
+        # If ANY resolved IP is private/local/reserved, block the request
+        for info in addr_info:
+            ip = info[4][0]
+            ip_obj = ipaddress.ip_address(ip)
+            if (ip_obj.is_private or
+                ip_obj.is_loopback or
+                ip_obj.is_multicast or
+                ip_obj.is_reserved or
+                ip_obj.is_unspecified):
+                return False
+
+        return True
+    except Exception:
+        return False
 
 def retry_with_backoff(max_retries=3, initial_backoff=1.0, backoff_multiplier=2.0):
     """
@@ -213,9 +247,13 @@ def scrape_item_task(item_id: int):
 
             # Helper to download and save
             def save_doc(doc_url, prefix="doc"):
+                if not is_safe_url(doc_url):
+                    logger.warning(f"Unsafe URL rejected for download: {doc_url}")
+                    return
                 try:
                     timeout = settings_manager.get("scrape_timeout", 30)
-                    resp = requests.get(doc_url, timeout=timeout)
+                    # Use a session to hook redirects, or simply disable them. Disabling is safest if redirects aren't critical.
+                    resp = requests.get(doc_url, timeout=timeout, allow_redirects=False)
                     if resp.status_code == 200:
                         import uuid
                         key = f"items/{item.id}/docs/{prefix}-{uuid.uuid4()}.pdf"
@@ -434,9 +472,12 @@ def process_item_image(item_id: int, media_id: int):
 
                 # Helper to download and save
                 def save_doc(doc_url, prefix="doc"):
+                    if not is_safe_url(doc_url):
+                        logger.warning(f"Unsafe URL rejected for download: {doc_url}")
+                        return
                     try:
                         timeout = settings_manager.get("scrape_timeout", 30)
-                        resp = requests.get(doc_url, timeout=timeout)
+                        resp = requests.get(doc_url, timeout=timeout, allow_redirects=False)
                         if resp.status_code == 200:
                             import uuid
                             key = f"items/{item.id}/docs/{prefix}-{uuid.uuid4()}.pdf"
