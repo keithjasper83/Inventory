@@ -28,7 +28,7 @@ from src.dependencies import templates, require_user, get_current_user
 from src.storage import storage
 from src.ai import ai_client
 from src.config import settings
-from src.tasks import create_audit_log, validate_ai_output
+from src.tasks import create_audit_log, validate_ai_output, AuditLogParams
 
 router = APIRouter()
 
@@ -360,7 +360,7 @@ def _create_resistor_items_bulk(
         source = meta["source"]
         confidence = meta["confidence"]
 
-        create_audit_log(
+        create_audit_log(AuditLogParams(
             db=db,
             entity_type="Item",
             entity_id=item.id,
@@ -374,7 +374,7 @@ def _create_resistor_items_bulk(
             confidence=int(confidence * 100) if confidence is not None else None,
             user_id=user_id,
             commit=False,
-        )
+        ))
 
     db.add_all(stocks)
     
