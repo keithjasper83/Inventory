@@ -9,7 +9,7 @@ import uuid
 from sqlalchemy.orm import Session
 from fastapi.concurrency import run_in_threadpool
 
-from src.models import Item, Category, Location, Stock, Media, AuditLog
+from src.models import Item, Category, Location, Stock
 from src.tasks import create_audit_log
 from src.domain.repositories import (
     ItemRepository, CategoryRepository, LocationRepository,

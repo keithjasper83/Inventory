@@ -1,4 +1,3 @@
-import pytest
 from unittest.mock import MagicMock, patch, AsyncMock
 from src.tasks import scrape_item_task
 from src.models import Item

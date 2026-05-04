@@ -12,9 +12,7 @@ from src.tasks import (
     scrape_item_task,
     MAX_RETRIES
 )
-from src.models import Item, Media, User, AuditLog
-from src.dependencies import require_role
-from fastapi import HTTPException
+from src.models import Item, Media, User
 import time
 
 

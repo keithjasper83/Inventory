@@ -1,11 +1,8 @@
-import os
-import asyncio
-from typing import List, Optional
+from typing import Optional
 from fastapi import APIRouter, Depends, Request, Form, UploadFile, File, HTTPException, status
 from fastapi.responses import RedirectResponse, HTMLResponse
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import or_
 import uuid
 import logging
 
@@ -16,7 +13,6 @@ from src.models import Item, Media, Category, Location, Stock, AuditLog
 from src.domain.services import ItemService
 from src.dependencies import templates, require_user, require_reviewer, get_current_user
 from src.storage import storage
-from src.ai import ai_client
 from src.tasks import process_item_image, create_audit_log
 from src.config import settings
 

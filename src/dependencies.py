@@ -1,10 +1,8 @@
-from typing import Annotated
 from fastapi import Depends, Request, HTTPException, status
+from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from src.database import get_db
-from src.auth import auth_service
 from src.models import User
-from src.config import settings
 
 def get_current_user(request: Request, db: Session = Depends(get_db)):
     user_id = request.session.get("user_id")
@@ -55,5 +53,4 @@ def require_reviewer(user: User = Depends(require_user)):
     return user
 
 # Template config
-from fastapi.templating import Jinja2Templates
 templates = Jinja2Templates(directory="src/templates")

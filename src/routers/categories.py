@@ -29,7 +29,7 @@ async def create_category(request: Request, name: str = Form(...), schema_json: 
     import json
     try:
         schema = json.loads(schema_json)
-    except:
+    except Exception:
         schema = {}
 
     cat = Category(name=name, slug=slug, schema=schema)

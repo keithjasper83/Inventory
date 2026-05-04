@@ -10,7 +10,6 @@ from src.settings_manager import settings_manager
 import asyncio
 import io
 from PIL import Image
-from rq import get_current_job
 from functools import wraps
 import logging
 
