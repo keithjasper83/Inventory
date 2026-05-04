@@ -7,6 +7,7 @@ from src.ai import ai_client
 from src.config import settings
 from src.storage import storage
 from src.settings_manager import settings_manager
+from src.domain.media_service import MediaService
 import asyncio
 import io
 from PIL import Image
@@ -305,44 +306,6 @@ def scrape_item_task(item_id: int):
     finally:
         db.close()
 
-def generate_thumbnails(image_bytes: bytes, item_id: int, original_filename: str):
-    """
-    Generate medium and thumbnail versions of the image and upload them.
-    Returns a dict of {type: s3_key}.
-    """
-    try:
-        img = Image.open(io.BytesIO(image_bytes))
-        original_format = img.format
-        content_type = f"image/{original_format.lower()}" if original_format else "image/jpeg"
-
-        derived = {}
-
-        # Sizes
-        sizes = {
-            "medium": (800, 800),
-            "thumbnail": (200, 200)
-        }
-
-        import uuid
-        base_name = original_filename.rsplit('/', 1)[-1]
-
-        for size_name, dimensions in sizes.items():
-            img_copy = img.copy()
-            img_copy.thumbnail(dimensions)
-
-            out_io = io.BytesIO()
-            img_copy.save(out_io, format=original_format or 'JPEG')
-            out_io.seek(0)
-
-            key = f"items/{item_id}/{size_name}-{uuid.uuid4()}-{base_name}"
-            storage.upload_file(out_io, key, content_type)
-            derived[size_name] = key
-
-        return derived
-    except Exception as e:
-        logger.error(f"Error generating thumbnails: {e}")
-        return {}
-
 def process_item_image(item_id: int, media_id: int):
     """
     Background task to process an item image.
@@ -373,13 +336,18 @@ def process_item_image(item_id: int, media_id: int):
             raise e
 
         # 2. Generate Thumbnails
-        thumbnails = generate_thumbnails(image_bytes, item_id, media.s3_key)
+        media_service = MediaService(storage)
+        thumbnails = media_service.generate_thumbnails(image_bytes, item_id, media.s3_key)
         for size, key in thumbnails.items():
             new_media = Media(
                 item_id=item.id,
                 type="image",
                 s3_key=key,
-                metadata_json={"size": size, "original_id": media.id}
+                metadata_json={
+                    "size": size,
+                    "original_id": media.id,
+                    "content_type": "image/webp"
+                }
             )
             db.add(new_media)
 
