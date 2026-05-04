@@ -1,6 +1,7 @@
 import os
 from fastapi import APIRouter, Depends, Request, Form, status
 from fastapi.responses import HTMLResponse, RedirectResponse
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from src.database import get_db
 from src.models import SystemSetting
@@ -11,6 +12,27 @@ import redis
 from rq import Queue
 
 router = APIRouter()
+
+class SettingsForm(BaseModel):
+    ai_confidence_threshold: float
+    scrape_timeout: int
+    presigned_url_expiry: int
+    rq_retry_max: int
+
+    @classmethod
+    def as_form(
+        cls,
+        ai_confidence_threshold: float = Form(...),
+        scrape_timeout: int = Form(...),
+        presigned_url_expiry: int = Form(...),
+        rq_retry_max: int = Form(...)
+    ):
+        return cls(
+            ai_confidence_threshold=ai_confidence_threshold,
+            scrape_timeout=scrape_timeout,
+            presigned_url_expiry=presigned_url_expiry,
+            rq_retry_max=rq_retry_max
+        )
 
 @router.get("/admin", response_class=HTMLResponse)
 async def admin_dashboard(request: Request, db: Session = Depends(get_db), user=Depends(require_admin)):
@@ -54,16 +76,13 @@ async def admin_dashboard(request: Request, db: Session = Depends(get_db), user=
 @router.post("/admin/settings")
 async def update_settings(
     request: Request,
-    ai_confidence_threshold: float = Form(...),
-    scrape_timeout: int = Form(...),
-    presigned_url_expiry: int = Form(...),
-    rq_retry_max: int = Form(...),
+    form_data: SettingsForm = Depends(SettingsForm.as_form),
     db: Session = Depends(get_db),
     user=Depends(require_admin)
 ):
-    settings_manager.set("ai_confidence_threshold", ai_confidence_threshold)
-    settings_manager.set("scrape_timeout", scrape_timeout)
-    settings_manager.set("presigned_url_expiry", presigned_url_expiry)
-    settings_manager.set("rq_retry_max", rq_retry_max)
+    settings_manager.set("ai_confidence_threshold", form_data.ai_confidence_threshold)
+    settings_manager.set("scrape_timeout", form_data.scrape_timeout)
+    settings_manager.set("presigned_url_expiry", form_data.presigned_url_expiry)
+    settings_manager.set("rq_retry_max", form_data.rq_retry_max)
 
     return RedirectResponse(url="/admin", status_code=status.HTTP_303_SEE_OTHER)
