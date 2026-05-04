@@ -12,8 +12,11 @@ from rq import Queue
 
 router = APIRouter()
 
+
 @router.get("/admin", response_class=HTMLResponse)
-async def admin_dashboard(request: Request, db: Session = Depends(get_db), user=Depends(require_admin)):
+async def admin_dashboard(
+    request: Request, db: Session = Depends(get_db), user=Depends(require_admin)
+):
     # 1. Fetch Settings
     # We want to show all defaults + overrides
     current_settings = settings_manager.get_all()
@@ -23,22 +26,24 @@ async def admin_dashboard(request: Request, db: Session = Depends(get_db), user=
     try:
         if os.environ.get("TEST_MODE"):
             import fakeredis
+
             r = fakeredis.FakeRedis()
         else:
             r = redis.from_url(app_settings.REDIS_URL)
 
         q = Queue(connection=r)
-        stats['queue_length'] = len(q)
-        stats['failed_jobs'] = len(Queue('failed', connection=r))
+        stats["queue_length"] = len(q)
+        stats["failed_jobs"] = len(Queue("failed", connection=r))
 
         # Worker stats could be fetched via Worker.all(connection=r)
         from rq import Worker
+
         workers = Worker.all(connection=r)
-        stats['workers_count'] = len(workers)
-        stats['workers_names'] = [w.name for w in workers]
+        stats["workers_count"] = len(workers)
+        stats["workers_names"] = [w.name for w in workers]
 
     except Exception as e:
-        stats['error'] = str(e)
+        stats["error"] = str(e)
 
     return templates.TemplateResponse(
         request=request,
@@ -47,9 +52,10 @@ async def admin_dashboard(request: Request, db: Session = Depends(get_db), user=
             "request": request,
             "settings": current_settings,
             "stats": stats,
-            "user": user
-        }
+            "user": user,
+        },
     )
+
 
 @router.post("/admin/settings")
 async def update_settings(
@@ -59,7 +65,7 @@ async def update_settings(
     presigned_url_expiry: int = Form(...),
     rq_retry_max: int = Form(...),
     db: Session = Depends(get_db),
-    user=Depends(require_admin)
+    user=Depends(require_admin),
 ):
     settings_manager.set("ai_confidence_threshold", ai_confidence_threshold)
     settings_manager.set("scrape_timeout", scrape_timeout)

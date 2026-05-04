@@ -1,5 +1,6 @@
 import os
-os.environ['TEST_MODE'] = '1'
+
+os.environ["TEST_MODE"] = "1"
 
 import pytest
 from unittest.mock import MagicMock
@@ -8,10 +9,12 @@ from src.main import app
 from src.database import get_db
 from src.dependencies import get_current_user
 
+
 @pytest.fixture
 def mock_db_session():
     session = MagicMock()
     return session
+
 
 @pytest.fixture
 def client(mock_db_session):

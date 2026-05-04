@@ -12,7 +12,16 @@ This module provides endpoints for bulk resistor processing:
 import os
 import uuid
 from typing import List, Optional, Dict, Any
-from fastapi import APIRouter, Depends, Request, Form, UploadFile, File, HTTPException, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    Request,
+    Form,
+    UploadFile,
+    File,
+    HTTPException,
+    status,
+)
 from fastapi.responses import RedirectResponse, HTMLResponse, JSONResponse
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
@@ -35,6 +44,7 @@ router = APIRouter()
 # Redis Connection
 if settings.TEST_MODE:
     import fakeredis
+
     redis_conn = fakeredis.FakeRedis()
 else:
     redis_conn = redis.from_url(settings.REDIS_URL)
@@ -43,7 +53,9 @@ q = Queue(connection=redis_conn)
 
 
 @router.get("/counting-plus", response_class=HTMLResponse)
-async def counting_plus_page(request: Request, db: Session = Depends(get_db), user=Depends(require_user)):
+async def counting_plus_page(
+    request: Request, db: Session = Depends(get_db), user=Depends(require_user)
+):
     """Display the Counting+ upload page."""
     categories = db.query(Category).all()
     locations = db.query(Location).all()
@@ -54,8 +66,8 @@ async def counting_plus_page(request: Request, db: Session = Depends(get_db), us
             "request": request,
             "categories": categories,
             "locations": locations,
-            "user": user
-        }
+            "user": user,
+        },
     )
 
 
@@ -63,20 +75,20 @@ async def counting_plus_page(request: Request, db: Session = Depends(get_db), us
 async def analyze_resistors(
     photo: UploadFile = File(...),
     db: Session = Depends(get_db),
-    user=Depends(require_user)
+    user=Depends(require_user),
 ):
     """
     Analyze a photo with multiple resistors and return identified components.
-    
+
     This is the first step - analyze only, don't create items yet.
     Allows user to review results before adding to inventory.
     """
     if not photo.filename:
         raise HTTPException(status_code=400, detail="No photo provided")
-    
+
     # Read image bytes
     image_bytes = await photo.read()
-    
+
     # Call AI service
     try:
         result = await ai_client.count_resistors_bulk(image_bytes)
@@ -84,44 +96,64 @@ async def analyze_resistors(
         # Jarvis not configured, return mock data for testing
         result = {
             "resistors": [
-                {"value": "10k", "ohms": 10000, "tolerance": "5%", "confidence": 0.98, "position": {"x": 100, "y": 150}},
-                {"value": "10k", "ohms": 10000, "tolerance": "5%", "confidence": 0.96, "position": {"x": 120, "y": 150}},
-                {"value": "100", "ohms": 100, "tolerance": "5%", "confidence": 0.95, "position": {"x": 140, "y": 150}},
-                {"value": "unknown", "ohms": None, "tolerance": None, "confidence": 0.2, "position": {"x": 160, "y": 150}},
+                {
+                    "value": "10k",
+                    "ohms": 10000,
+                    "tolerance": "5%",
+                    "confidence": 0.98,
+                    "position": {"x": 100, "y": 150},
+                },
+                {
+                    "value": "10k",
+                    "ohms": 10000,
+                    "tolerance": "5%",
+                    "confidence": 0.96,
+                    "position": {"x": 120, "y": 150},
+                },
+                {
+                    "value": "100",
+                    "ohms": 100,
+                    "tolerance": "5%",
+                    "confidence": 0.95,
+                    "position": {"x": 140, "y": 150},
+                },
+                {
+                    "value": "unknown",
+                    "ohms": None,
+                    "tolerance": None,
+                    "confidence": 0.2,
+                    "position": {"x": 160, "y": 150},
+                },
             ],
             "total_count": 4,
             "failed_count": 1,
-            "grouped": {
-                "10k": 2,
-                "100": 1,
-                "unknown": 1
-            },
-            "warning": "Jarvis not configured - using mock data for testing"
+            "grouped": {"10k": 2, "100": 1, "unknown": 1},
+            "warning": "Jarvis not configured - using mock data for testing",
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"AI analysis failed: {str(e)}")
-    
+
     # Store image temporarily for batch creation
     temp_key = f"temp/counting-plus/{uuid.uuid4()}-{photo.filename}"
     await photo.seek(0)  # Reset file pointer
-    await run_in_threadpool(storage.upload_file, photo.file, temp_key, photo.content_type)
-    
+    await run_in_threadpool(
+        storage.upload_file, photo.file, temp_key, photo.content_type
+    )
+
     # Return results with temp key for batch creation
     result["temp_image_key"] = temp_key
-    result["analyzed_by"] = user.username if hasattr(user, 'username') else "unknown"
-    
+    result["analyzed_by"] = user.username if hasattr(user, "username") else "unknown"
+
     return JSONResponse(content=result)
 
 
 @router.post("/api/counting-plus/batch-create")
 async def batch_create_resistors(
-    request: Request,
-    db: Session = Depends(get_db),
-    user=Depends(require_user)
+    request: Request, db: Session = Depends(get_db), user=Depends(require_user)
 ):
     """
     Batch create items from analyzed resistors.
-    
+
     Expected payload:
     {
         "temp_image_key": "temp/counting-plus/...",
@@ -134,20 +166,20 @@ async def batch_create_resistors(
     }
     """
     data = await request.json()
-    
+
     temp_image_key = data.get("temp_image_key")
     location_id = data.get("location_id")
     category_id = data.get("category_id")
     resistors = data.get("resistors", [])
-    
+
     if not location_id:
         raise HTTPException(status_code=400, detail="Location ID required")
-    
+
     # Validate location exists
     location = db.query(Location).filter(Location.id == location_id).first()
     if not location:
         raise HTTPException(status_code=404, detail="Location not found")
-    
+
     # Group resistors by value for batch processing
     grouped_by_value: Dict[str, List[Dict[str, Any]]] = {}
     for resistor in resistors:
@@ -157,10 +189,10 @@ async def batch_create_resistors(
         if value not in grouped_by_value:
             grouped_by_value[value] = []
         grouped_by_value[value].append(resistor)
-    
+
     created_items = []
     failed_items = []
-    
+
     # Create items grouped by value
     for value, resistor_list in grouped_by_value.items():
         if value == "unknown":
@@ -173,15 +205,17 @@ async def batch_create_resistors(
                         category_id,
                         resistor_list,
                         temp_image_key,
-                        user.id if hasattr(user, 'id') else None
+                        user.id if hasattr(user, "id") else None,
                     )
                     for item, resistor in zip(items, resistor_list):
-                        created_items.append({
-                            "id": item.id,
-                            "name": item.name,
-                            "value": value,
-                            "confidence": resistor.get("confidence", 0)
-                        })
+                        created_items.append(
+                            {
+                                "id": item.id,
+                                "name": item.name,
+                                "value": value,
+                                "confidence": resistor.get("confidence", 0),
+                            }
+                        )
             except Exception as e:
                 # Fallback to individual
                 for resistor in resistor_list:
@@ -194,19 +228,18 @@ async def batch_create_resistors(
                                 category_id,
                                 [resistor],
                                 temp_image_key,
-                                user.id if hasattr(user, 'id') else None
+                                user.id if hasattr(user, "id") else None,
                             )[0]
-                            created_items.append({
-                                "id": item.id,
-                                "name": item.name,
-                                "value": value,
-                                "confidence": resistor.get("confidence", 0)
-                            })
+                            created_items.append(
+                                {
+                                    "id": item.id,
+                                    "name": item.name,
+                                    "value": value,
+                                    "confidence": resistor.get("confidence", 0),
+                                }
+                            )
                     except Exception as inner_e:
-                        failed_items.append({
-                            "value": value,
-                            "error": str(inner_e)
-                        })
+                        failed_items.append({"value": value, "error": str(inner_e)})
         else:
             # Create single item with quantity = count
             try:
@@ -216,40 +249,41 @@ async def batch_create_resistors(
                     category_id,
                     resistor_list[0],  # Use first as template
                     temp_image_key,
-                    user.id if hasattr(user, 'id') else None,
-                    quantity=len(resistor_list)
+                    user.id if hasattr(user, "id") else None,
+                    quantity=len(resistor_list),
                 )
-                created_items.append({
-                    "id": item.id,
-                    "name": item.name,
-                    "value": value,
-                    "quantity": len(resistor_list),
-                    "confidence": resistor_list[0].get("confidence", 0)
-                })
+                created_items.append(
+                    {
+                        "id": item.id,
+                        "name": item.name,
+                        "value": value,
+                        "quantity": len(resistor_list),
+                        "confidence": resistor_list[0].get("confidence", 0),
+                    }
+                )
             except Exception as e:
-                failed_items.append({
-                    "value": value,
-                    "count": len(resistor_list),
-                    "error": str(e)
-                })
-    
+                failed_items.append(
+                    {"value": value, "count": len(resistor_list), "error": str(e)}
+                )
+
     db.commit()
-    
+
     # Clean up temp image
     try:
         if temp_image_key:
             await run_in_threadpool(storage.delete_file, temp_image_key)
     except:
         pass  # Don't fail if cleanup fails
-    
-    return JSONResponse(content={
-        "success": True,
-        "created_count": len(created_items),
-        "failed_count": len(failed_items),
-        "created_items": created_items,
-        "failed_items": failed_items
-    })
 
+    return JSONResponse(
+        content={
+            "success": True,
+            "created_count": len(created_items),
+            "failed_count": len(failed_items),
+            "created_items": created_items,
+            "failed_items": failed_items,
+        }
+    )
 
 
 def _create_resistor_items_bulk(
@@ -259,7 +293,7 @@ def _create_resistor_items_bulk(
     resistors: List[Dict[str, Any]],
     temp_image_key: Optional[str],
     user_id: Optional[int],
-    quantities: Optional[List[int]] = None
+    quantities: Optional[List[int]] = None,
 ) -> List[Item]:
     """
     Create multiple items from resistor data in bulk.
@@ -272,7 +306,7 @@ def _create_resistor_items_bulk(
 
     items = []
     item_metadata = []
-    
+
     for resistor, quantity in zip(resistors, quantities):
         value = resistor.get("value", "unknown")
         ohms = resistor.get("ohms")
@@ -294,7 +328,7 @@ def _create_resistor_items_bulk(
                 name += f" {tolerance}"
         else:
             name = f"Unknown Resistor (Confidence: {confidence*100:.0f}%)"
-        
+
         # Generate slug
         base_slug = name.lower().replace(" ", "-").replace("ω", "ohm")
         slug = f"{base_slug}-{uuid.uuid4().hex[:6]}"
@@ -305,7 +339,7 @@ def _create_resistor_items_bulk(
             "tolerance": tolerance,
             "ai_confidence": confidence,
             "source": "counting_plus",
-            "value_display": value
+            "value_display": value,
         }
 
         # Determine if this should be considered AI-scraped or needs review
@@ -318,24 +352,26 @@ def _create_resistor_items_bulk(
             slug=slug,
             category_id=category_id,
             is_draft=is_draft,
-            data=item_data
+            data=item_data,
         )
         items.append(item)
-        item_metadata.append({
-            "name": name,
-            "quantity": quantity,
-            "source": source,
-            "confidence": confidence,
-            "item_data": item_data,
-            "resistor": resistor
-        })
-    
+        item_metadata.append(
+            {
+                "name": name,
+                "quantity": quantity,
+                "source": source,
+                "confidence": confidence,
+                "item_data": item_data,
+                "resistor": resistor,
+            }
+        )
+
     db.add_all(items)
     db.flush()  # Get IDs for all items at once
-    
+
     stocks = []
     audit_logs = []
-    
+
     for item, meta in zip(items, item_metadata):
         # Copy image from temp if available
         if temp_image_key:
@@ -351,9 +387,7 @@ def _create_resistor_items_bulk(
 
         # Create stock entry
         stock = Stock(
-            item_id=item.id,
-            location_id=location_id,
-            quantity=meta["quantity"]
+            item_id=item.id, location_id=location_id, quantity=meta["quantity"]
         )
         stocks.append(stock)
 
@@ -365,7 +399,11 @@ def _create_resistor_items_bulk(
             entity_type="Item",
             entity_id=item.id,
             action="CREATE",
-            changes={"name": meta["name"], "quantity": meta["quantity"], "method": "counting_plus"},
+            changes={
+                "name": meta["name"],
+                "quantity": meta["quantity"],
+                "method": "counting_plus",
+            },
             before_state={},
             after_state=meta["item_data"],
             source=source,
@@ -377,7 +415,7 @@ def _create_resistor_items_bulk(
         )
 
     db.add_all(stocks)
-    
+
     return items
 
 
@@ -388,13 +426,19 @@ def _create_resistor_item(
     resistor: Dict[str, Any],
     temp_image_key: Optional[str],
     user_id: Optional[int],
-    quantity: int = 1
+    quantity: int = 1,
 ) -> Item:
     """
     Create a single item from resistor data.
     """
     items = _create_resistor_items_bulk(
-        db, location_id, category_id, [resistor], temp_image_key, user_id, quantities=[quantity]
+        db,
+        location_id,
+        category_id,
+        [resistor],
+        temp_image_key,
+        user_id,
+        quantities=[quantity],
     )
     # The original function committed inside the loop, so for backwards compatibility of
     # usages outside of bulk processing, we still commit here if it's called individually!
@@ -409,24 +453,21 @@ async def counting_plus_test_page(request: Request, user=Depends(require_user)):
     return templates.TemplateResponse(
         request=request,
         name="test_counting_plus.html",
-        context={"request": request, "user": user}
+        context={"request": request, "user": user},
     )
 
 
 @router.post("/api/counting-plus/test-analyze")
-async def test_analyze(
-    photo: UploadFile = File(...),
-    user=Depends(require_user)
-):
+async def test_analyze(photo: UploadFile = File(...), user=Depends(require_user)):
     """
     Test endpoint for analyzing resistors without creating items.
     Returns detailed diagnostic information.
     """
     if not photo.filename:
         raise HTTPException(status_code=400, detail="No photo provided")
-    
+
     image_bytes = await photo.read()
-    
+
     # Test with AI if available, otherwise use mock
     try:
         result = await ai_client.count_resistors_bulk(image_bytes)
@@ -436,33 +477,68 @@ async def test_analyze(
         # Jarvis not configured
         result = {
             "resistors": [
-                {"value": "10k", "ohms": 10000, "tolerance": "5%", "confidence": 0.98, "position": {"x": 100, "y": 150}},
-                {"value": "10k", "ohms": 10000, "tolerance": "5%", "confidence": 0.96, "position": {"x": 120, "y": 150}},
-                {"value": "100", "ohms": 100, "tolerance": "5%", "confidence": 0.95, "position": {"x": 140, "y": 150}},
-                {"value": "1M", "ohms": 1000000, "tolerance": "5%", "confidence": 0.92, "position": {"x": 160, "y": 150}},
-                {"value": "unknown", "ohms": None, "tolerance": None, "confidence": 0.2, "position": {"x": 180, "y": 150}},
+                {
+                    "value": "10k",
+                    "ohms": 10000,
+                    "tolerance": "5%",
+                    "confidence": 0.98,
+                    "position": {"x": 100, "y": 150},
+                },
+                {
+                    "value": "10k",
+                    "ohms": 10000,
+                    "tolerance": "5%",
+                    "confidence": 0.96,
+                    "position": {"x": 120, "y": 150},
+                },
+                {
+                    "value": "100",
+                    "ohms": 100,
+                    "tolerance": "5%",
+                    "confidence": 0.95,
+                    "position": {"x": 140, "y": 150},
+                },
+                {
+                    "value": "1M",
+                    "ohms": 1000000,
+                    "tolerance": "5%",
+                    "confidence": 0.92,
+                    "position": {"x": 160, "y": 150},
+                },
+                {
+                    "value": "unknown",
+                    "ohms": None,
+                    "tolerance": None,
+                    "confidence": 0.2,
+                    "position": {"x": 180, "y": 150},
+                },
             ],
             "total_count": 5,
             "failed_count": 1,
-            "grouped": {
-                "10k": 2,
-                "100": 1,
-                "1M": 1,
-                "unknown": 1
-            },
+            "grouped": {"10k": 2, "100": 1, "1M": 1, "unknown": 1},
             "test_mode": True,
             "jarvis_available": False,
-            "message": "Using mock data - Jarvis not configured"
+            "message": "Using mock data - Jarvis not configured",
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
-    
+
     # Add validation info
     result["validation"] = {
         "total_analyzed": len(result.get("resistors", [])),
-        "high_confidence": len([r for r in result.get("resistors", []) if r.get("confidence", 0) >= 0.95]),
-        "medium_confidence": len([r for r in result.get("resistors", []) if 0.8 <= r.get("confidence", 0) < 0.95]),
-        "low_confidence": len([r for r in result.get("resistors", []) if r.get("confidence", 0) < 0.8]),
+        "high_confidence": len(
+            [r for r in result.get("resistors", []) if r.get("confidence", 0) >= 0.95]
+        ),
+        "medium_confidence": len(
+            [
+                r
+                for r in result.get("resistors", [])
+                if 0.8 <= r.get("confidence", 0) < 0.95
+            ]
+        ),
+        "low_confidence": len(
+            [r for r in result.get("resistors", []) if r.get("confidence", 0) < 0.8]
+        ),
     }
-    
+
     return JSONResponse(content=result)

@@ -3,12 +3,13 @@ from src.models import SystemSetting
 from src.database import SessionLocal
 import json
 
+
 class SettingsManager:
     _defaults = {
         "ai_confidence_threshold": 0.95,
         "scrape_timeout": 60,
         "presigned_url_expiry": 3600,
-        "rq_retry_max": 3
+        "rq_retry_max": 3,
     }
 
     def get(self, key: str, default=None):
@@ -41,12 +42,17 @@ class SettingsManager:
             settings = self._defaults.copy()
 
             # Fetch all overrides from DB that exist in defaults
-            overrides = db.query(SystemSetting).filter(SystemSetting.key.in_(self._defaults.keys())).all()
+            overrides = (
+                db.query(SystemSetting)
+                .filter(SystemSetting.key.in_(self._defaults.keys()))
+                .all()
+            )
             for setting in overrides:
                 settings[setting.key] = setting.value
 
             return settings
         finally:
             db.close()
+
 
 settings_manager = SettingsManager()
