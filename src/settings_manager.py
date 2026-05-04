@@ -1,7 +1,5 @@
-from sqlalchemy.orm import Session
 from src.models import SystemSetting
 from src.database import SessionLocal
-import json
 
 class SettingsManager:
     _defaults = {
