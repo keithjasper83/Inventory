@@ -7,7 +7,7 @@ class Settings(BaseSettings):
     SECRET_KEY: str = "supersecretkey" # Change in production
     ENVIRONMENT: str = "development"
     TEST_MODE: bool = os.environ.get('TEST_MODE') == '1'
-    ADMIN_PASSWORD: str = "admin"
+    ADMIN_PASSWORD: str
     TOKEN_EXPIRY_SECONDS: int = 86400
     AI_AUTO_APPLY_CONFIDENCE: float = 0.95
     AI_MANUAL_REVIEW_THRESHOLD: float = 0.80
@@ -64,6 +64,11 @@ def validate_production_config():
 
     if settings.TEST_MODE:
         errors.append("TEST_MODE is enabled - must be disabled for production")
+
+    if settings.ADMIN_PASSWORD == "admin" or len(settings.ADMIN_PASSWORD) < 8:
+        errors.append("ADMIN_PASSWORD is using default/insecure value - must be changed for production (min 8 chars)")
+
+
     
     if errors:
         raise ValueError(
