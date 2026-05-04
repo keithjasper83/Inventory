@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from fastapi.concurrency import run_in_threadpool
 
 from src.models import Item, Category, Location, Stock, Media, AuditLog
-from src.tasks import create_audit_log
+from src.tasks import create_audit_log, AuditLogParams
 from src.domain.repositories import (
     ItemRepository, CategoryRepository, LocationRepository,
     StockRepository, MediaRepository, AuditLogRepository
@@ -65,14 +65,14 @@ class ItemService:
         self.stock_repo.create(stock)
         
         # Create audit log
-        create_audit_log(
+        create_audit_log(AuditLogParams(
             db=self.db,
             entity_type="Item",
             entity_id=item.id,
             action="CREATE",
             changes={"name": name, "is_draft": is_draft},
             source="USER"
-        )
+        ))
         
         self.db.commit()
         return item
@@ -106,14 +106,14 @@ class ItemService:
             item.data = data
             item.pending_changes = {}
             
-            create_audit_log(
+            create_audit_log(AuditLogParams(
                 db=self.db,
                 entity_type="Item",
                 entity_id=item.id,
                 action="APPROVE",
                 changes=changes_to_log,
                 source="USER"
-            )
+            ))
             self.db.commit()
         
         return item
@@ -132,14 +132,14 @@ class ItemService:
         if item.pending_changes:
             item.pending_changes = {}
             
-            create_audit_log(
+            create_audit_log(AuditLogParams(
                 db=self.db,
                 entity_type="Item",
                 entity_id=item.id,
                 action="REJECT",
                 changes={},
                 source="USER"
-            )
+            ))
             self.db.commit()
         
         return item
