@@ -1,6 +1,7 @@
 import os
 import asyncio
 from typing import List, Optional
+from dataclasses import dataclass
 from fastapi import APIRouter, Depends, Request, Form, UploadFile, File, HTTPException, status
 from fastapi.responses import RedirectResponse, HTMLResponse
 from fastapi.concurrency import run_in_threadpool
@@ -33,6 +34,14 @@ else:
 
 q = Queue(connection=redis_conn)
 
+@dataclass
+class ItemCreateForm:
+    location_id: int = Form(...)
+    photo: UploadFile = File(...)
+    name: Optional[str] = Form(None)
+    category_id: Optional[int] = Form(None)
+    quantity: int = Form(1)
+
 @router.get("/new", response_class=HTMLResponse)
 async def new_item_page(request: Request, db: Session = Depends(get_db), user=Depends(require_user)):
     categories = db.query(Category).all()
@@ -46,21 +55,17 @@ async def new_item_page(request: Request, db: Session = Depends(get_db), user=De
 @router.post("/items")
 async def create_item(
     request: Request,
-    name: Optional[str] = Form(None),
-    location_id: int = Form(...),
-    category_id: Optional[int] = Form(None),
-    quantity: int = Form(1),
-    photo: UploadFile = File(...),
+    form_data: ItemCreateForm = Depends(),
     db: Session = Depends(get_db),
     user=Depends(require_user)
 ):
     # Create Item (Draft if name missing, though name or photo is required, photo is enforced by type)
-    is_draft = name is None
+    is_draft = form_data.name is None
 
     # Generate slug if name provided
     slug = None
-    if name:
-        base_slug = name.lower().replace(" ", "-") # Simple slugify
+    if form_data.name:
+        base_slug = form_data.name.lower().replace(" ", "-") # Simple slugify
         slug = f"{base_slug}-{uuid.uuid4().hex[:6]}"
 
     # Extract Dynamic Data (prefixed with data_)
@@ -72,9 +77,9 @@ async def create_item(
             item_data[clean_key] = value
 
     item = Item(
-        name=name,
+        name=form_data.name,
         slug=slug,
-        category_id=category_id,
+        category_id=form_data.category_id,
         is_draft=is_draft,
         data=item_data
     )
@@ -82,11 +87,11 @@ async def create_item(
     db.flush() # Get ID
 
     # Handle Photo
-    if photo.filename:
-        key = f"items/{item.id}/{uuid.uuid4()}-{photo.filename}"
+    if form_data.photo.filename:
+        key = f"items/{item.id}/{uuid.uuid4()}-{form_data.photo.filename}"
 
         # Non-blocking upload
-        await run_in_threadpool(storage.upload_file, photo.file, key, photo.content_type)
+        await run_in_threadpool(storage.upload_file, form_data.photo.file, key, form_data.photo.content_type)
 
         media = Media(
             item_id=item.id,
@@ -96,7 +101,7 @@ async def create_item(
         db.add(media)
 
     # Handle Stock
-    stock = Stock(item_id=item.id, location_id=location_id, quantity=quantity)
+    stock = Stock(item_id=item.id, location_id=form_data.location_id, quantity=form_data.quantity)
     db.add(stock)
 
     # Audit Log
@@ -105,7 +110,7 @@ async def create_item(
         entity_type="Item",
         entity_id=item.id,
         action="CREATE",
-        changes={"name": name, "is_draft": is_draft},
+        changes={"name": form_data.name, "is_draft": is_draft},
         source="USER",
         user_id=user.id if user else None
     )
