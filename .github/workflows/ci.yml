@@ -58,3 +58,6 @@ jobs:
         PYTHONPATH: .
       run: |
         pytest tests/ -v
+    - name: Run mypy
+      run: |
+        python -m mypy src/

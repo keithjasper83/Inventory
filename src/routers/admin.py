@@ -1,3 +1,4 @@
+from typing import Any
 import os
 from fastapi import APIRouter, Depends, Request, Form, status
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -19,11 +20,11 @@ async def admin_dashboard(request: Request, db: Session = Depends(get_db), user=
     current_settings = settings_manager.get_all()
 
     # 2. Fetch Stats
-    stats = {}
+    stats: dict[str, Any] = {}
     try:
         if os.environ.get("TEST_MODE"):
             import fakeredis
-            r = fakeredis.FakeRedis()
+            r: Any = fakeredis.FakeRedis()
         else:
             r = redis.from_url(app_settings.REDIS_URL)
 

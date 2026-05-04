@@ -1,6 +1,6 @@
 import os
 import redis
-from rq import Worker, Queue, Connection
+from rq import Worker, Queue, Connection  # type: ignore
 from src.config import settings
 import logging
 

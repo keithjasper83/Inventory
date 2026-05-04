@@ -1,3 +1,4 @@
+from typing import Any
 import os
 import asyncio
 from typing import List, Optional
@@ -27,7 +28,7 @@ router = APIRouter()
 # Redis Connection
 if settings.TEST_MODE:
     import fakeredis
-    redis_conn = fakeredis.FakeRedis()
+    redis_conn: Any = fakeredis.FakeRedis()
 else:
     redis_conn = redis.from_url(settings.REDIS_URL)
 
@@ -86,7 +87,7 @@ async def create_item(
         key = f"items/{item.id}/{uuid.uuid4()}-{photo.filename}"
 
         # Non-blocking upload
-        await run_in_threadpool(storage.upload_file, photo.file, key, photo.content_type)
+        await run_in_threadpool(storage.upload_file, photo.file, key, str(photo.content_type))
 
         media = Media(
             item_id=item.id,

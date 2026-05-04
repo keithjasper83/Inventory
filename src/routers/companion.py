@@ -1,3 +1,4 @@
+from typing import Any
 import uuid
 import json
 import os
@@ -23,7 +24,7 @@ router = APIRouter()
 # Redis Connection (Reuse logic from items.py or similar, better to have a global dependency but doing inline for now to match style)
 if settings.TEST_MODE:
     import fakeredis
-    redis_conn = fakeredis.FakeRedis()
+    redis_conn: Any = fakeredis.FakeRedis()
 else:
     redis_conn = redis.from_url(settings.REDIS_URL)
 
@@ -96,7 +97,7 @@ async def companion_upload(
 
     # Handle Photo
     s3_key = f"items/{item.id}/{uuid.uuid4()}-{photo.filename}"
-    await run_in_threadpool(storage.upload_file, photo.file, s3_key, photo.content_type)
+    await run_in_threadpool(storage.upload_file, photo.file, s3_key, str(photo.content_type))
 
     media = Media(
         item_id=item.id,
