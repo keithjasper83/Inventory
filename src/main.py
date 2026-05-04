@@ -104,4 +104,33 @@ async def custom_http_exception_handler(request: Request, exc: StarletteHTTPExce
             status_code=404
         )
 
-    return HTMLResponse(content=str(exc.detail), status_code=exc.status_code)
+    # General error handling
+    status_code_titles = {
+        400: "Bad Request",
+        401: "Unauthorized",
+        403: "Forbidden",
+        405: "Method Not Allowed",
+        429: "Too Many Requests",
+        500: "Internal Server Error",
+        502: "Bad Gateway",
+        503: "Service Unavailable"
+    }
+
+    title = status_code_titles.get(exc.status_code, "An Error Occurred")
+
+    if exc.status_code >= 500:
+        logger.error(f"Server Error {exc.status_code}: {str(exc.detail)} - Path: {request.url.path}")
+    else:
+        logger.warning(f"Client Error {exc.status_code}: {str(exc.detail)} - Path: {request.url.path}")
+
+    return templates.TemplateResponse(
+        request=request,
+        name="error.html",
+        context={
+            "request": request,
+            "status_code": exc.status_code,
+            "title": title,
+            "detail": str(exc.detail)
+        },
+        status_code=exc.status_code
+    )

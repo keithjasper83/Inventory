@@ -1,0 +1,9 @@
+/app/venv/lib/python3.12/site-packages/pydantic/main.py:1809: UserWarning: Field name "schema_json" in "Body_create_category_categories_post" shadows an attribute in parent "BaseModel"
+  return meta(
+/app/venv/lib/python3.12/site-packages/pydantic/main.py:1809: UserWarning: Field name "schema_json" in "Body_create_category_categories_post" shadows an attribute in parent "BaseModel"
+  return meta(
+INFO:     Started server process [65548]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:46968 - "GET /non-existent-page HTTP/1.1" 404 Not Found
