@@ -11,11 +11,11 @@ from src.config import settings
 try:
     from sqlalchemy.dialects.postgresql import TSVECTOR, JSONB
 except ImportError:
-    TSVECTOR = Text
-    JSONB = JSON
+    TSVECTOR = Text  # type: ignore
+    JSONB = JSON  # type: ignore
 
 if "sqlite" in settings.DATABASE_URL or os.environ.get("TEST_MODE"):
-    TSVECTOR = Text
+    TSVECTOR = Text  # type: ignore
     # SQLite doesn't support JSONB, so we map it to generic JSON or Text if needed,
     # but SQLAlchemy's JSON type handles serialization for SQLite.
     # However, we imported JSONB from postgresql dialect which might cause issues if used directly.
@@ -90,7 +90,7 @@ class Item(Base):
         )
     else:
         # Mock column for SQLite to avoid attribute errors
-        search_vector: Mapped[str] = mapped_column(String, nullable=True)
+        search_vector = mapped_column(String, nullable=True)  # type: ignore
 
     category: Mapped[Optional["Category"]] = relationship("Category", back_populates="items")
     stock: Mapped[List["Stock"]] = relationship("Stock", back_populates="item")

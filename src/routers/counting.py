@@ -1,3 +1,4 @@
+from typing import Any
 """
 Counting+ Feature: Bulk resistor counting and identification from photos.
 
@@ -35,7 +36,7 @@ router = APIRouter()
 # Redis Connection
 if settings.TEST_MODE:
     import fakeredis
-    redis_conn = fakeredis.FakeRedis()
+    redis_conn: Any = fakeredis.FakeRedis()
 else:
     redis_conn = redis.from_url(settings.REDIS_URL)
 
@@ -104,7 +105,7 @@ async def analyze_resistors(
     # Store image temporarily for batch creation
     temp_key = f"temp/counting-plus/{uuid.uuid4()}-{photo.filename}"
     await photo.seek(0)  # Reset file pointer
-    await run_in_threadpool(storage.upload_file, photo.file, temp_key, photo.content_type)
+    await run_in_threadpool(storage.upload_file, photo.file, temp_key, photo.content_type)  # type: ignore
     
     # Return results with temp key for batch creation
     result["temp_image_key"] = temp_key
@@ -159,7 +160,7 @@ async def batch_create_resistors(
         grouped_by_value[value].append(resistor)
     
     created_items = []
-    failed_items = []
+    failed_items: list[dict[str, Any]] = []
     
     # Create items grouped by value
     for value, resistor_list in grouped_by_value.items():
@@ -238,7 +239,7 @@ async def batch_create_resistors(
     # Clean up temp image
     try:
         if temp_image_key:
-            await run_in_threadpool(storage.delete_file, temp_image_key)
+            await run_in_threadpool(storage.delete_file, temp_image_key)  # type: ignore
     except:
         pass  # Don't fail if cleanup fails
     
@@ -334,7 +335,7 @@ def _create_resistor_items_bulk(
     db.flush()  # Get IDs for all items at once
     
     stocks = []
-    audit_logs = []
+    audit_logs: list[AuditLog] = []
     
     for item, meta in zip(items, item_metadata):
         # Copy image from temp if available

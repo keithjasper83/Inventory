@@ -135,17 +135,17 @@ This document tracks outstanding tasks, known issues, and improvements needed be
 
 ### Code Quality
 
-- [ ] **Add type checking with mypy**
-  - Create mypy.ini configuration
-  - Run mypy on all src/ files
-  - Fix type hint errors
-  - Add to CI/CD pipeline
+- [x] **Add type checking with mypy**
+  - [x] Create mypy.ini configuration
+  - [x] Run mypy on all src/ files
+  - [x] Fix type hint errors
+  - [x] Add to CI/CD pipeline
 
 - [ ] **Add linting with ruff or flake8**
   - Choose linter (ruff recommended for speed)
   - Create configuration file
   - Fix linting errors
-  - Add to CI/CD pipeline
+  - [x] Add to CI/CD pipeline
 
 - [ ] **Code formatting with black**
   - Run black on all Python files

@@ -43,7 +43,7 @@ async def lifespan(application: FastAPI):
         except Exception as exc:
             from urllib.parse import urlparse
             parsed = urlparse(settings.REDIS_URL)
-            safe_url = parsed._replace(password="****").geturl() if parsed.password else settings.REDIS_URL
+            safe_url = parsed._replace(password="****").geturl() if parsed.password else settings.REDIS_URL  # type: ignore
             raise RuntimeError(
                 f"Failed to connect to Redis during startup. "
                 f"Check REDIS_URL configuration and ensure Redis is reachable: {safe_url}"
