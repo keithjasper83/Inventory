@@ -1,5 +1,6 @@
 import os
 os.environ['TEST_MODE'] = '1'
+os.environ.setdefault('ADMIN_PASSWORD', 'test_admin')
 
 import pytest
 from unittest.mock import MagicMock
