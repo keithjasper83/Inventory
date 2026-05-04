@@ -4,7 +4,7 @@ Following the repository pattern to separate data access from business logic.
 """
 from typing import Optional, List
 from sqlalchemy.orm import Session
-from sqlalchemy import or_, text
+from sqlalchemy import text
 from src.models import Item, Category, Location, Stock, Media, AuditLog
 
 
