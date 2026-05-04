@@ -12,8 +12,6 @@ import logging
 import redis as _redis
 from sqlalchemy.orm import Session
 
-from src.database import get_db
-from src.models import Item
 from src.config import settings, validate_production_config
 from src.database import get_db
 from src.models import Item
