@@ -13,11 +13,42 @@ from PIL import Image
 from rq import get_current_job
 from functools import wraps
 import logging
+import urllib.parse
+import socket
+import ipaddress
 
 logger = logging.getLogger(__name__)
 
 # Constants for retry and AI validation
 MAX_RETRIES = 3
+
+def is_safe_url(url: str) -> bool:
+    """
+    Validate that a URL is safe to request (prevents SSRF).
+    Checks that the scheme is http/https and the resolved IPs are not internal.
+    """
+    try:
+        parsed = urllib.parse.urlparse(url)
+        if parsed.scheme not in ('http', 'https'):
+            return False
+
+        hostname = parsed.hostname
+        if not hostname:
+            return False
+
+        addr_info = socket.getaddrinfo(hostname, None)
+        for info in addr_info:
+            ip = info[4][0]
+            ip_obj = ipaddress.ip_address(ip)
+            if (ip_obj.is_loopback or ip_obj.is_private or
+                ip_obj.is_link_local or ip_obj.is_multicast or
+                ip_obj.is_unspecified):
+                return False
+
+        return True
+    except Exception as e:
+        logger.warning(f"Error validating URL {url}: {e}")
+        return False
 
 def retry_with_backoff(max_retries=3, initial_backoff=1.0, backoff_multiplier=2.0):
     """
@@ -215,8 +246,23 @@ def scrape_item_task(item_id: int):
             def save_doc(doc_url, prefix="doc"):
                 try:
                     timeout = settings_manager.get("scrape_timeout", 30)
-                    resp = requests.get(doc_url, timeout=timeout)
-                    if resp.status_code == 200:
+                    current_url = doc_url
+                    redirects = 0
+                    resp = None
+
+                    while redirects < 5:
+                        if not is_safe_url(current_url):
+                            logger.warning(f"Blocked unsafe URL download attempt: {current_url}")
+                            return
+
+                        resp = requests.get(current_url, timeout=timeout, allow_redirects=False)
+                        if resp.status_code in (301, 302, 303, 307, 308) and 'Location' in resp.headers:
+                            current_url = urllib.parse.urljoin(current_url, resp.headers['Location'])
+                            redirects += 1
+                        else:
+                            break
+
+                    if resp and resp.status_code == 200:
                         import uuid
                         key = f"items/{item.id}/docs/{prefix}-{uuid.uuid4()}.pdf"
                         storage.upload_file(io.BytesIO(resp.content), key, "application/pdf", bucket_type="docs")
@@ -436,8 +482,23 @@ def process_item_image(item_id: int, media_id: int):
                 def save_doc(doc_url, prefix="doc"):
                     try:
                         timeout = settings_manager.get("scrape_timeout", 30)
-                        resp = requests.get(doc_url, timeout=timeout)
-                        if resp.status_code == 200:
+                        current_url = doc_url
+                        redirects = 0
+                        resp = None
+
+                        while redirects < 5:
+                            if not is_safe_url(current_url):
+                                logger.warning(f"Blocked unsafe URL download attempt: {current_url}")
+                                return
+
+                            resp = requests.get(current_url, timeout=timeout, allow_redirects=False)
+                            if resp.status_code in (301, 302, 303, 307, 308) and 'Location' in resp.headers:
+                                current_url = urllib.parse.urljoin(current_url, resp.headers['Location'])
+                                redirects += 1
+                            else:
+                                break
+
+                        if resp and resp.status_code == 200:
                             import uuid
                             key = f"items/{item.id}/docs/{prefix}-{uuid.uuid4()}.pdf"
                             storage.upload_file(io.BytesIO(resp.content), key, "application/pdf", bucket_type="docs")
