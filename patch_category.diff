@@ -1,0 +1,17 @@
+<<<<<<< SEARCH
+            item = Item(
+                name=name,
+                slug=slug,
+                category_id=category_id,
+                is_draft=is_draft,
+                data=item_data
+            )
+=======
+            item = Item(
+                name=name,
+                slug=slug,
+                category_id=context.category_id,
+                is_draft=is_draft,
+                data=item_data
+            )
+>>>>>>> REPLACE
