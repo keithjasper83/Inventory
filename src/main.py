@@ -1,19 +1,16 @@
-from fastapi import FastAPI, Request, status, Depends
+from fastapi import FastAPI, Request, Depends
 from sqlalchemy.orm import Session
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.gzip import GZipMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.exceptions import HTTPException as StarletteHTTPException
-from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.concurrency import run_in_threadpool
 from contextlib import asynccontextmanager
 import os
 import logging
 import redis as _redis
-from sqlalchemy.orm import Session
 
-from src.database import get_db
-from src.models import Item
 from src.config import settings, validate_production_config
 from src.database import get_db
 from src.models import Item
