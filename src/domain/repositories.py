@@ -3,7 +3,7 @@
 Following the repository pattern to separate data access from business logic.
 """
 from typing import Optional, List
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import or_, text
 from src.models import Item, Category, Location, Stock, Media, AuditLog
 
@@ -24,12 +24,19 @@ class ItemRepository:
     
     def search_by_text(self, query: str) -> List[Item]:
         """Search items using PostgreSQL FTS."""
+        # Pre-build base query with joinedload to prevent N+1 later
+        base_query = self.db.query(Item).options(joinedload(Item.media))
+
+        # Check dialect to avoid slow exception throwing in SQLite
+        if self.db.get_bind().dialect.name == 'sqlite':
+            return base_query.filter(Item.name.ilike(f"%{query}%")).all()
+
         try:
             search_query = text("search_vector @@ plainto_tsquery('english', :q)")
-            return self.db.query(Item).filter(search_query).params(q=query).all()
+            return base_query.filter(search_query).params(q=query).all()
         except Exception:
-            # Fallback for SQLite or error
-            return self.db.query(Item).filter(Item.name.ilike(f"%{query}%")).all()
+            # Fallback for error
+            return base_query.filter(Item.name.ilike(f"%{query}%")).all()
     
     def create(self, item: Item) -> Item:
         """Create a new item."""
