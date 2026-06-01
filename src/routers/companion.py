@@ -12,7 +12,7 @@ from rq import Queue
 from src.database import get_db
 from src.models import Item, Media, AuditLog, Stock
 from src.storage import storage
-from src.tasks import process_item_image, create_audit_log
+from src.tasks import process_item_image, create_audit_log, AuditLogParams
 from src.config import settings
 from src.dependencies import templates
 
@@ -60,7 +60,7 @@ async def companion_page(request: Request, session_id: str):
     )
 
 @router.post("/companion/{session_id}/upload")
-async def companion_upload(
+def companion_upload(
     session_id: str,
     photo: UploadFile = File(...),
     db: Session = Depends(get_db)
@@ -96,7 +96,7 @@ async def companion_upload(
 
     # Handle Photo
     s3_key = f"items/{item.id}/{uuid.uuid4()}-{photo.filename}"
-    await run_in_threadpool(storage.upload_file, photo.file, s3_key, photo.content_type)
+    storage.upload_file(photo.file, s3_key, photo.content_type)
 
     media = Media(
         item_id=item.id,
@@ -106,14 +106,14 @@ async def companion_upload(
     db.add(media)
 
     # Audit
-    create_audit_log(
+    create_audit_log(AuditLogParams(
         db=db,
         entity_type="Item",
         entity_id=item.id,
         action="CREATE",
         changes={"source": "companion_app"},
         source="USER"
-    )
+    ))
     db.commit()
 
     # Trigger AI

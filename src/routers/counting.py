@@ -11,6 +11,7 @@ This module provides endpoints for bulk resistor processing:
 
 import os
 import uuid
+from dataclasses import dataclass
 from typing import List, Optional, Dict, Any
 from fastapi import APIRouter, Depends, Request, Form, UploadFile, File, HTTPException, status
 from fastapi.responses import RedirectResponse, HTMLResponse, JSONResponse
@@ -22,13 +23,20 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+@dataclass
+class ResistorCreationContext:
+    location_id: int
+    category_id: Optional[int]
+    temp_image_key: Optional[str]
+    user_id: Optional[int]
+
 from src.database import get_db
-from src.models import Item, Media, Category, Location, Stock, AuditLog
+from src.models import Item, Category, Location, Stock, AuditLog
 from src.dependencies import templates, require_user, get_current_user
 from src.storage import storage
 from src.ai import ai_client
 from src.config import settings
-from src.tasks import create_audit_log, validate_ai_output
+from src.tasks import create_audit_log, validate_ai_output, AuditLogParams
 
 router = APIRouter()
 
@@ -161,6 +169,13 @@ async def batch_create_resistors(
     created_items = []
     failed_items = []
     
+    ctx = ResistorCreationContext(
+        location_id=location_id,
+        category_id=category_id,
+        temp_image_key=temp_image_key,
+        user_id=user.id if hasattr(user, 'id') else None
+    )
+
     # Create items grouped by value
     for value, resistor_list in grouped_by_value.items():
         if value == "unknown":
@@ -169,11 +184,8 @@ async def batch_create_resistors(
                 with db.begin_nested():
                     items = _create_resistor_items_bulk(
                         db,
-                        location_id,
-                        category_id,
-                        resistor_list,
-                        temp_image_key,
-                        user.id if hasattr(user, 'id') else None
+                        ctx,
+                        resistor_list
                     )
                     for item, resistor in zip(items, resistor_list):
                         created_items.append({
@@ -190,11 +202,8 @@ async def batch_create_resistors(
                             # we call the bulk with one item, but do not commit individually
                             item = _create_resistor_items_bulk(
                                 db,
-                                location_id,
-                                category_id,
-                                [resistor],
-                                temp_image_key,
-                                user.id if hasattr(user, 'id') else None
+                                ctx,
+                                [resistor]
                             )[0]
                             created_items.append({
                                 "id": item.id,
@@ -212,11 +221,8 @@ async def batch_create_resistors(
             try:
                 item = _create_resistor_item(
                     db,
-                    location_id,
-                    category_id,
+                    ctx,
                     resistor_list[0],  # Use first as template
-                    temp_image_key,
-                    user.id if hasattr(user, 'id') else None,
                     quantity=len(resistor_list)
                 )
                 created_items.append({
@@ -254,11 +260,8 @@ async def batch_create_resistors(
 
 def _create_resistor_items_bulk(
     db: Session,
-    location_id: int,
-    category_id: Optional[int],
+    ctx: ResistorCreationContext,
     resistors: List[Dict[str, Any]],
-    temp_image_key: Optional[str],
-    user_id: Optional[int],
     quantities: Optional[List[int]] = None
 ) -> List[Item]:
     """
@@ -316,7 +319,7 @@ def _create_resistor_items_bulk(
         item = Item(
             name=name,
             slug=slug,
-            category_id=category_id,
+            category_id=ctx.category_id,
             is_draft=is_draft,
             data=item_data
         )
@@ -338,7 +341,7 @@ def _create_resistor_items_bulk(
     
     for item, meta in zip(items, item_metadata):
         # Copy image from temp if available
-        if temp_image_key:
+        if ctx.temp_image_key:
             try:
                 # Copy temp image to permanent location
                 new_key = f"items/{item.id}/counting-plus-{uuid.uuid4()}.jpg"
@@ -352,7 +355,7 @@ def _create_resistor_items_bulk(
         # Create stock entry
         stock = Stock(
             item_id=item.id,
-            location_id=location_id,
+            location_id=ctx.location_id,
             quantity=meta["quantity"]
         )
         stocks.append(stock)
@@ -360,7 +363,7 @@ def _create_resistor_items_bulk(
         source = meta["source"]
         confidence = meta["confidence"]
 
-        create_audit_log(
+        create_audit_log(AuditLogParams(
             db=db,
             entity_type="Item",
             entity_id=item.id,
@@ -372,9 +375,9 @@ def _create_resistor_items_bulk(
             # confidence is passed as integer 0-100; approval_status is derived
             # automatically from confidence inside create_audit_log
             confidence=int(confidence * 100) if confidence is not None else None,
-            user_id=user_id,
+            user_id=ctx.user_id,
             commit=False,
-        )
+        ))
 
     db.add_all(stocks)
     
@@ -383,18 +386,15 @@ def _create_resistor_items_bulk(
 
 def _create_resistor_item(
     db: Session,
-    location_id: int,
-    category_id: Optional[int],
+    ctx: ResistorCreationContext,
     resistor: Dict[str, Any],
-    temp_image_key: Optional[str],
-    user_id: Optional[int],
     quantity: int = 1
 ) -> Item:
     """
     Create a single item from resistor data.
     """
     items = _create_resistor_items_bulk(
-        db, location_id, category_id, [resistor], temp_image_key, user_id, quantities=[quantity]
+        db, ctx, [resistor], quantities=[quantity]
     )
     # The original function committed inside the loop, so for backwards compatibility of
     # usages outside of bulk processing, we still commit here if it's called individually!

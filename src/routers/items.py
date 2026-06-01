@@ -1,6 +1,7 @@
 import os
 import asyncio
 from typing import List, Optional
+from dataclasses import dataclass
 from fastapi import APIRouter, Depends, Request, Form, UploadFile, File, HTTPException, status
 from fastapi.responses import RedirectResponse, HTMLResponse
 from fastapi.concurrency import run_in_threadpool
@@ -17,7 +18,7 @@ from src.domain.services import ItemService
 from src.dependencies import templates, require_user, require_reviewer, get_current_user
 from src.storage import storage
 from src.ai import ai_client
-from src.tasks import process_item_image, create_audit_log
+from src.tasks import process_item_image, create_audit_log, AuditLogParams
 from src.config import settings
 
 logger = logging.getLogger(__name__)
@@ -33,6 +34,30 @@ else:
 
 q = Queue(connection=redis_conn)
 
+@dataclass
+class ItemCreateForm:
+    location_id: int
+    photo: UploadFile
+    name: Optional[str]
+    category_id: Optional[int]
+    quantity: int
+
+
+def get_item_create_form(
+    location_id: int = Form(...),
+    photo: UploadFile = File(...),
+    name: Optional[str] = Form(None),
+    category_id: Optional[int] = Form(None),
+    quantity: int = Form(1),
+) -> ItemCreateForm:
+    return ItemCreateForm(
+        location_id=location_id,
+        photo=photo,
+        name=name,
+        category_id=category_id,
+        quantity=quantity,
+    )
+
 @router.get("/new", response_class=HTMLResponse)
 async def new_item_page(request: Request, db: Session = Depends(get_db), user=Depends(require_user)):
     categories = db.query(Category).all()
@@ -46,35 +71,31 @@ async def new_item_page(request: Request, db: Session = Depends(get_db), user=De
 @router.post("/items")
 async def create_item(
     request: Request,
-    name: Optional[str] = Form(None),
-    location_id: int = Form(...),
-    category_id: Optional[int] = Form(None),
-    quantity: int = Form(1),
-    photo: UploadFile = File(...),
+    form_data: ItemCreateForm = Depends(get_item_create_form),
     db: Session = Depends(get_db),
     user=Depends(require_user)
 ):
     # Create Item (Draft if name missing, though name or photo is required, photo is enforced by type)
-    is_draft = name is None
+    is_draft = form_data.name is None
 
     # Generate slug if name provided
     slug = None
-    if name:
-        base_slug = name.lower().replace(" ", "-") # Simple slugify
+    if form_data.name:
+        base_slug = form_data.name.lower().replace(" ", "-") # Simple slugify
         slug = f"{base_slug}-{uuid.uuid4().hex[:6]}"
 
     # Extract Dynamic Data (prefixed with data_)
-    form_data = await request.form()
+    submitted_form = await request.form()
     item_data = {}
-    for key, value in form_data.items():
+    for key, value in submitted_form.items():
         if key.startswith("data_"):
             clean_key = key.replace("data_", "")
             item_data[clean_key] = value
 
     item = Item(
-        name=name,
+        name=form_data.name,
         slug=slug,
-        category_id=category_id,
+        category_id=form_data.category_id,
         is_draft=is_draft,
         data=item_data
     )
@@ -82,11 +103,11 @@ async def create_item(
     db.flush() # Get ID
 
     # Handle Photo
-    if photo.filename:
-        key = f"items/{item.id}/{uuid.uuid4()}-{photo.filename}"
+    if form_data.photo.filename:
+        key = f"items/{item.id}/{uuid.uuid4()}-{form_data.photo.filename}"
 
         # Non-blocking upload
-        await run_in_threadpool(storage.upload_file, photo.file, key, photo.content_type)
+        await run_in_threadpool(storage.upload_file, form_data.photo.file, key, form_data.photo.content_type)
 
         media = Media(
             item_id=item.id,
@@ -96,19 +117,19 @@ async def create_item(
         db.add(media)
 
     # Handle Stock
-    stock = Stock(item_id=item.id, location_id=location_id, quantity=quantity)
+    stock = Stock(item_id=item.id, location_id=form_data.location_id, quantity=form_data.quantity)
     db.add(stock)
 
     # Audit Log
-    create_audit_log(
+    create_audit_log(AuditLogParams(
         db=db,
         entity_type="Item",
         entity_id=item.id,
         action="CREATE",
-        changes={"name": name, "is_draft": is_draft},
+        changes={"name": form_data.name, "is_draft": is_draft},
         source="USER",
         user_id=user.id if user else None
-    )
+    ))
 
     db.commit()
 
@@ -152,7 +173,7 @@ async def view_item_slug(slug: str, request: Request, db: Session = Depends(get_
     )
 
 @router.get("/p/{id}", response_class=HTMLResponse)
-async def view_item_id(id: int, request: Request, db: Session = Depends(get_db), user=Depends(get_current_user)):
+def view_item_id(id: int, request: Request, db: Session = Depends(get_db), user=Depends(get_current_user)):
     item = db.query(Item).options(joinedload(Item.category), joinedload(Item.media)).filter(Item.id == id).first()
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
@@ -164,7 +185,7 @@ async def view_item_id(id: int, request: Request, db: Session = Depends(get_db),
     audit_logs = db.query(AuditLog).filter(AuditLog.entity_id == item.id).order_by(AuditLog.timestamp.desc()).all()
 
     service = ItemService(db)
-    media_list = await service.get_media_with_urls(item, storage)
+    media_list = service.get_media_with_urls_sync(item, storage)
 
     return templates.TemplateResponse(
         request=request,
@@ -187,7 +208,7 @@ async def approve_changes(id: int, request: Request, db: Session = Depends(get_d
         item.data = data
         item.pending_changes = {}
 
-        create_audit_log(
+        create_audit_log(AuditLogParams(
             db=db,
             entity_type="Item",
             entity_id=item.id,
@@ -198,7 +219,7 @@ async def approve_changes(id: int, request: Request, db: Session = Depends(get_d
             source="USER",
             user_id=user.id,
             approval_status="approved"
-        )
+        ))
         db.commit()
 
     return RedirectResponse(url=f"/p/{id}", status_code=status.HTTP_303_SEE_OTHER)
@@ -213,7 +234,7 @@ async def reject_changes(id: int, request: Request, db: Session = Depends(get_db
         rejected_changes = item.pending_changes.copy()
         item.pending_changes = {}
 
-        create_audit_log(
+        create_audit_log(AuditLogParams(
             db=db,
             entity_type="Item",
             entity_id=item.id,
@@ -222,7 +243,7 @@ async def reject_changes(id: int, request: Request, db: Session = Depends(get_db
             source="USER",
             user_id=user.id,
             approval_status="rejected"
-        )
+        ))
         db.commit()
 
     return RedirectResponse(url=f"/p/{id}", status_code=status.HTTP_303_SEE_OTHER)
@@ -245,17 +266,18 @@ async def undo_change(id: int, log_id: int, request: Request, db: Session = Depe
     # Assuming it's a dict of {field: old_value} matching Item columns or Item.data keys.
 
     current_data = dict(item.data)
-    changes_made = {}
+    changes_made = log.previous_values.copy()
+    restricted_keys = {'data', 'id', 'created_at'}
 
-    for key, value in log.previous_values.items():
+    for key, value in changes_made.items():
+        if key in restricted_keys:
+            continue
         # Check if key is a column or data key
-        if hasattr(item, key) and key not in ['data', 'id', 'created_at']:
+        if hasattr(item, key):
             setattr(item, key, value)
-            changes_made[key] = value
         else:
             # Assume it's in data
             current_data[key] = value
-            changes_made[key] = value
 
     item.data = current_data
 
@@ -263,7 +285,7 @@ async def undo_change(id: int, log_id: int, request: Request, db: Session = Depe
     log.is_undone = True
 
     # Create new audit log for the undo
-    create_audit_log(
+    create_audit_log(AuditLogParams(
         db=db,
         entity_type="Item",
         entity_id=item.id,
@@ -272,7 +294,7 @@ async def undo_change(id: int, log_id: int, request: Request, db: Session = Depe
         source="USER",
         confidence=100,
         user_id=user.id if user else None
-    )
+    ))
     db.commit()
 
     return RedirectResponse(url=f"/p/{id}", status_code=status.HTTP_303_SEE_OTHER)

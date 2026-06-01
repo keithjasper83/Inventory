@@ -13,7 +13,7 @@ async def login_page(request: Request):
     return templates.TemplateResponse(request=request, name="login.html", context={"request": request})
 
 @router.post("/login")
-async def login(
+def login(
     request: Request,
     username: str = Form(...),
     password: str = Form(...),

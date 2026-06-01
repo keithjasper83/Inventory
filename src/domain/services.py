@@ -6,11 +6,22 @@ naturally fit within a single entity.
 import asyncio
 from typing import Optional, List, Dict, Any
 import uuid
+from dataclasses import dataclass
 from sqlalchemy.orm import Session
 from fastapi.concurrency import run_in_threadpool
 
+
+@dataclass
+class ItemCreateDTO:
+    """DTO for creating a new item."""
+    name: Optional[str]
+    location_id: int
+    category_id: Optional[int]
+    quantity: int
+    data: Dict[str, Any]
+
 from src.models import Item, Category, Location, Stock, Media, AuditLog
-from src.tasks import create_audit_log
+from src.tasks import create_audit_log, AuditLogParams
 from src.domain.repositories import (
     ItemRepository, CategoryRepository, LocationRepository,
     StockRepository, MediaRepository, AuditLogRepository
@@ -27,14 +38,7 @@ class ItemService:
         self.media_repo = MediaRepository(db)
         self.audit_repo = AuditLogRepository(db)
     
-    def create_item(
-        self,
-        name: Optional[str],
-        location_id: int,
-        category_id: Optional[int],
-        quantity: int,
-        data: Dict[str, Any]
-    ) -> Item:
+    def create_item(self, dto: ItemCreateDTO) -> Item:
         """Create a new inventory item.
         
         Business rules:
@@ -43,36 +47,36 @@ class ItemService:
         - Stock entry is created automatically
         - Audit log is created
         """
-        is_draft = name is None
+        is_draft = dto.name is None
         slug = None
         
-        if name:
-            base_slug = name.lower().replace(" ", "-")
+        if dto.name:
+            base_slug = dto.name.lower().replace(" ", "-")
             slug = f"{base_slug}-{uuid.uuid4().hex[:6]}"
         
         item = Item(
-            name=name,
+            name=dto.name,
             slug=slug,
-            category_id=category_id,
+            category_id=dto.category_id,
             is_draft=is_draft,
-            data=data
+            data=dto.data
         )
         
         item = self.item_repo.create(item)
         
         # Create stock entry
-        stock = Stock(item_id=item.id, location_id=location_id, quantity=quantity)
+        stock = Stock(item_id=item.id, location_id=dto.location_id, quantity=dto.quantity)
         self.stock_repo.create(stock)
         
         # Create audit log
-        create_audit_log(
+        create_audit_log(AuditLogParams(
             db=self.db,
             entity_type="Item",
             entity_id=item.id,
             action="CREATE",
-            changes={"name": name, "is_draft": is_draft},
+            changes={"name": dto.name, "is_draft": is_draft},
             source="USER"
-        )
+        ))
         
         self.db.commit()
         return item
@@ -106,14 +110,14 @@ class ItemService:
             item.data = data
             item.pending_changes = {}
             
-            create_audit_log(
+            create_audit_log(AuditLogParams(
                 db=self.db,
                 entity_type="Item",
                 entity_id=item.id,
                 action="APPROVE",
                 changes=changes_to_log,
                 source="USER"
-            )
+            ))
             self.db.commit()
         
         return item
@@ -132,14 +136,14 @@ class ItemService:
         if item.pending_changes:
             item.pending_changes = {}
             
-            create_audit_log(
+            create_audit_log(AuditLogParams(
                 db=self.db,
                 entity_type="Item",
                 entity_id=item.id,
                 action="REJECT",
                 changes={},
                 source="USER"
-            )
+            ))
             self.db.commit()
         
         return item
@@ -155,6 +159,18 @@ class ItemService:
                 "metadata": m.metadata_json
             }
         return await asyncio.gather(*(_get_url(m) for m in item.media))
+
+    def get_media_with_urls_sync(self, item: Item, storage_service) -> List[Dict[str, Any]]:
+        """Get media list with presigned URLs synchronously."""
+        media_list = []
+        for m in item.media:
+            media_list.append({
+                "type": m.type,
+                "s3_key": m.s3_key,
+                "url": storage_service.get_presigned_url(m.s3_key),
+                "metadata": m.metadata_json
+            })
+        return media_list
 
 
 class LocationService:

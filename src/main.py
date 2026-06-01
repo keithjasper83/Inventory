@@ -4,7 +4,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.gzip import GZipMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.exceptions import HTTPException as StarletteHTTPException
-from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.concurrency import run_in_threadpool
 from contextlib import asynccontextmanager
 import os
@@ -18,7 +18,7 @@ from src.config import settings, validate_production_config
 from src.database import get_db
 from src.models import Item
 from src.dependencies import templates, get_current_user
-from src.routers import auth, items, search, locations, categories, admin, health, counting
+from src.routers import auth, items, search, locations, categories, admin, health, counting, companion
 from src.ai import ai_client
 
 logger = logging.getLogger(__name__)
@@ -61,6 +61,7 @@ app.add_middleware(GZipMiddleware, minimum_size=1000)
 app.mount("/static", StaticFiles(directory="src/static"), name="static")
 
 # Routers
+app.include_router(companion.router)
 app.include_router(health.router)
 app.include_router(auth.router)
 app.include_router(counting.router)
@@ -104,4 +105,33 @@ async def custom_http_exception_handler(request: Request, exc: StarletteHTTPExce
             status_code=404
         )
 
-    return HTMLResponse(content=str(exc.detail), status_code=exc.status_code)
+    # General error handling
+    status_code_titles = {
+        400: "Bad Request",
+        401: "Unauthorized",
+        403: "Forbidden",
+        405: "Method Not Allowed",
+        429: "Too Many Requests",
+        500: "Internal Server Error",
+        502: "Bad Gateway",
+        503: "Service Unavailable"
+    }
+
+    title = status_code_titles.get(exc.status_code, "An Error Occurred")
+
+    if exc.status_code >= 500:
+        logger.error(f"Server Error {exc.status_code}: {str(exc.detail)} - Path: {request.url.path}")
+    else:
+        logger.warning(f"Client Error {exc.status_code}: {str(exc.detail)} - Path: {request.url.path}")
+
+    return templates.TemplateResponse(
+        request=request,
+        name="error.html",
+        context={
+            "request": request,
+            "status_code": exc.status_code,
+            "title": title,
+            "detail": str(exc.detail)
+        },
+        status_code=exc.status_code
+    )
