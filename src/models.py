@@ -51,7 +51,7 @@ class Location(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String, index=True)
     slug: Mapped[str] = mapped_column(String, unique=True, index=True)
-    parent_id: Mapped[Optional[int]] = mapped_column(ForeignKey("locations.id"), nullable=True)
+    parent_id: Mapped[Optional[int]] = mapped_column(ForeignKey("locations.id"), nullable=True, index=True)
     path: Mapped[str] = mapped_column(String, index=True, default="/") # Materialized path e.g. /1/5/
 
     parent: Mapped[Optional["Location"]] = relationship("Location", remote_side=[id], back_populates="children")
@@ -74,7 +74,7 @@ class Item(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String, index=True, nullable=True) # Can be null if draft
     slug: Mapped[str] = mapped_column(String, unique=True, index=True, nullable=True)
-    category_id: Mapped[Optional[int]] = mapped_column(ForeignKey("categories.id"), nullable=True)
+    category_id: Mapped[Optional[int]] = mapped_column(ForeignKey("categories.id"), nullable=True, index=True)
     data: Mapped[dict] = mapped_column(JSON, server_default='{}')
     pending_changes: Mapped[dict] = mapped_column(JSON, server_default='{}') # Stores AI suggestions for review
     is_draft: Mapped[bool] = mapped_column(Boolean, default=True)
@@ -110,7 +110,7 @@ class Media(Base):
     __tablename__ = "media"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    item_id: Mapped[int] = mapped_column(ForeignKey("items.id"))
+    item_id: Mapped[int] = mapped_column(ForeignKey("items.id"), index=True)
     type: Mapped[str] = mapped_column(String) # image, pdf
     s3_key: Mapped[str] = mapped_column(String)
     metadata_json: Mapped[dict] = mapped_column(JSON, server_default='{}') # Renamed to avoid confusion with MetaData
@@ -122,15 +122,15 @@ class AuditLog(Base):
     __tablename__ = "audit_log"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    entity_type: Mapped[str] = mapped_column(String) # Item, Stock, etc.
-    entity_id: Mapped[int] = mapped_column(Integer)
+    entity_type: Mapped[str] = mapped_column(String, index=True) # Item, Stock, etc.
+    entity_id: Mapped[int] = mapped_column(Integer, index=True)
     action: Mapped[str] = mapped_column(String) # CREATE, UPDATE, DELETE, SUGGEST, UNDO
     changes: Mapped[dict] = mapped_column(JSON)
     previous_values: Mapped[dict] = mapped_column(JSON, server_default='{}')
     is_undone: Mapped[bool] = mapped_column(Boolean, default=False)
     confidence: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     source: Mapped[str] = mapped_column(String) # USER, AI_GENERATED, AI_SCRAPED
-    timestamp: Mapped[datetime] = mapped_column(server_default=func.now())
+    timestamp: Mapped[datetime] = mapped_column(server_default=func.now(), index=True)
     user_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     approval_status: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     reviewed_by: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
