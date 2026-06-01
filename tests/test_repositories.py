@@ -42,10 +42,13 @@ def test_search_by_text_fallback():
 
     query_mock = MagicMock()
     db_mock.query.return_value = query_mock
+    db_mock.get_bind.return_value.dialect.name = "postgresql"
+    options_mock = MagicMock()
+    query_mock.options.return_value = options_mock
 
     filter_mock_1 = MagicMock()
     filter_mock_2 = MagicMock()
-    query_mock.filter.side_effect = [filter_mock_1, filter_mock_2]
+    options_mock.filter.side_effect = [filter_mock_1, filter_mock_2]
 
     filter_mock_1.params.side_effect = Exception("DB error")
     filter_mock_2.all.return_value = expected_result
@@ -53,9 +56,9 @@ def test_search_by_text_fallback():
     result = repo.search_by_text(query)
 
     assert result == expected_result
-    assert query_mock.filter.call_count == 2
+    assert options_mock.filter.call_count == 2
 
-    args, _ = query_mock.filter.call_args_list[1]
+    args, _ = options_mock.filter.call_args_list[1]
     clause = args[0]
     assert isinstance(clause, BinaryExpression)
     assert clause.right.value == f"%{query}%"
