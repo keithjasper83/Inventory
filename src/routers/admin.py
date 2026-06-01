@@ -1,7 +1,7 @@
 import os
 from fastapi import APIRouter, Depends, Request, Form, status
 from fastapi.responses import HTMLResponse, RedirectResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from src.database import get_db
 from src.models import SystemSetting
@@ -14,10 +14,10 @@ from rq import Queue
 router = APIRouter()
 
 class SettingsForm(BaseModel):
-    ai_confidence_threshold: float
-    scrape_timeout: int
-    presigned_url_expiry: int
-    rq_retry_max: int
+    ai_confidence_threshold: float = Field(ge=0.0, le=1.0)
+    scrape_timeout: int = Field(gt=0)
+    presigned_url_expiry: int = Field(gt=0)
+    rq_retry_max: int = Field(ge=0)
 
     @classmethod
     def as_form(

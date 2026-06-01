@@ -36,11 +36,27 @@ q = Queue(connection=redis_conn)
 
 @dataclass
 class ItemCreateForm:
-    location_id: int = Form(...)
-    photo: UploadFile = File(...)
-    name: Optional[str] = Form(None)
-    category_id: Optional[int] = Form(None)
-    quantity: int = Form(1)
+    location_id: int
+    photo: UploadFile
+    name: Optional[str]
+    category_id: Optional[int]
+    quantity: int
+
+
+def get_item_create_form(
+    location_id: int = Form(...),
+    photo: UploadFile = File(...),
+    name: Optional[str] = Form(None),
+    category_id: Optional[int] = Form(None),
+    quantity: int = Form(1),
+) -> ItemCreateForm:
+    return ItemCreateForm(
+        location_id=location_id,
+        photo=photo,
+        name=name,
+        category_id=category_id,
+        quantity=quantity,
+    )
 
 @router.get("/new", response_class=HTMLResponse)
 async def new_item_page(request: Request, db: Session = Depends(get_db), user=Depends(require_user)):
@@ -55,7 +71,7 @@ async def new_item_page(request: Request, db: Session = Depends(get_db), user=De
 @router.post("/items")
 async def create_item(
     request: Request,
-    form_data: ItemCreateForm = Depends(),
+    form_data: ItemCreateForm = Depends(get_item_create_form),
     db: Session = Depends(get_db),
     user=Depends(require_user)
 ):
@@ -69,9 +85,9 @@ async def create_item(
         slug = f"{base_slug}-{uuid.uuid4().hex[:6]}"
 
     # Extract Dynamic Data (prefixed with data_)
-    form_data = await request.form()
+    submitted_form = await request.form()
     item_data = {}
-    for key, value in form_data.items():
+    for key, value in submitted_form.items():
         if key.startswith("data_"):
             clean_key = key.replace("data_", "")
             item_data[clean_key] = value
@@ -254,8 +270,10 @@ async def undo_change(id: int, log_id: int, request: Request, db: Session = Depe
     restricted_keys = {'data', 'id', 'created_at'}
 
     for key, value in changes_made.items():
+        if key in restricted_keys:
+            continue
         # Check if key is a column or data key
-        if key not in restricted_keys and hasattr(item, key):
+        if hasattr(item, key):
             setattr(item, key, value)
         else:
             # Assume it's in data

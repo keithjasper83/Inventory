@@ -1,7 +1,7 @@
 import os
 os.environ['TEST_MODE'] = '1'
-os.environ.setdefault('SECRET_KEY', 'test_secret_key')
-os.environ.setdefault('ADMIN_PASSWORD', 'test_admin_password')
+os.environ.setdefault('SECRET_KEY', 'test_secret_key_inventory_suite_2026')
+os.environ.setdefault('ADMIN_PASSWORD', 'test_admin_password_inventory_suite_2026')
 
 import pytest
 from unittest.mock import MagicMock
