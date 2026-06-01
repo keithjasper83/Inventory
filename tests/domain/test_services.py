@@ -2,6 +2,7 @@ import pytest
 from unittest.mock import MagicMock, patch
 from src.domain.services import ItemService
 from src.models import Item
+from src.tasks import AuditLogParams
 
 class TestItemService:
     def setup_method(self):
@@ -28,14 +29,14 @@ class TestItemService:
         assert result.data == {"existing_key": "updated_value", "new_key": "new_value"}
         assert not result.pending_changes
 
-        mock_create_audit_log.assert_called_once_with(
-            db=self.db,
-            entity_type="Item",
-            entity_id=item_id,
-            action="APPROVE",
-            changes={"new_key": "new_value", "existing_key": "updated_value"},
-            source="USER"
-        )
+        audit_params = mock_create_audit_log.call_args.args[0]
+        assert isinstance(audit_params, AuditLogParams)
+        assert audit_params.db == self.db
+        assert audit_params.entity_type == "Item"
+        assert audit_params.entity_id == item_id
+        assert audit_params.action == "APPROVE"
+        assert audit_params.changes == {"new_key": "new_value", "existing_key": "updated_value"}
+        assert audit_params.source == "USER"
         self.db.commit.assert_called_once()
 
     def test_approve_pending_changes_item_not_found(self):
