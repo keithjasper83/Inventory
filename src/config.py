@@ -4,10 +4,10 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     # Application
     APP_NAME: str = "Jules Inventory"
-    SECRET_KEY: str = "supersecretkey" # Change in production
+    SECRET_KEY: str # Change in production
     ENVIRONMENT: str = "development"
     TEST_MODE: bool = os.environ.get('TEST_MODE') == '1'
-    ADMIN_PASSWORD: str = "admin"
+    ADMIN_PASSWORD: str
     TOKEN_EXPIRY_SECONDS: int = 86400
     AI_AUTO_APPLY_CONFIDENCE: float = 0.95
     AI_MANUAL_REVIEW_THRESHOLD: float = 0.80
