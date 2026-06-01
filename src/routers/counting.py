@@ -23,7 +23,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 from src.database import get_db
-from src.models import Item, Media, Category, Location, Stock, AuditLog
+from src.models import Item, Media, Category, Location, Stock
 from src.dependencies import templates, require_user, get_current_user
 from src.storage import storage
 from src.ai import ai_client
