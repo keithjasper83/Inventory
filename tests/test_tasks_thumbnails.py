@@ -1,13 +1,17 @@
-import pytest
-from unittest.mock import patch
-from src.tasks import generate_thumbnails
+from unittest.mock import MagicMock, patch
 
-@patch("src.tasks.logger.error")
+from src.domain.media_service import MediaService
+
+
+@patch("src.domain.media_service.logger.error")
 def test_generate_thumbnails_exception(mock_logger_error):
-    # Passing malformed bytes will cause PIL.Image.open to raise an exception
-    malformed_bytes = b"not an image"
+    media_service = MediaService(MagicMock())
 
-    result = generate_thumbnails(malformed_bytes, item_id=1, original_filename="test.jpg")
+    result = media_service.generate_thumbnails(
+        b"not an image",
+        item_id=1,
+        original_filename="test.jpg",
+    )
 
     assert result == {}
     mock_logger_error.assert_called_once()
